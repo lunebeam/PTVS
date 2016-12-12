@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,12 +14,19 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-// PkgCmdID.cs
-// MUST match ML.vsct
+using System;
+using System.Collections.Generic;
+using Microsoft.CookiecutterTools.Model;
 
-namespace Microsoft.PythonTools.ML {
-    static class PkgCmdIDList {
-        public const int AddAzureMLServiceTemplate = 0x0101;
-        public const int AddAzureMLServiceTemplateToFile = 0x0102;
+namespace CookiecutterTests {
+    class MockProjectSystemClient : IProjectSystemClient {
+        public List<Tuple<ProjectLocation, CreateFilesOperationResult>> Added { get; } = new List<Tuple<ProjectLocation, CreateFilesOperationResult>>();
+        public void AddToProject(ProjectLocation location, CreateFilesOperationResult creationResult) {
+            Added.Add(Tuple.Create(location, creationResult));
+        }
+
+        public ProjectLocation GetSelectedFolderProjectLocation() {
+            throw new NotImplementedException();
+        }
     }
 }
