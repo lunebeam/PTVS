@@ -469,6 +469,15 @@ namespace Microsoft.PythonTools {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Custom environment.
+        /// </summary>
+        public static string CustomEnvironmentLabel {
+            get {
+                return ResourceManager.GetString("CustomEnvironmentLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Getting attach information from web site..
         /// </summary>
         public static string DebugAttachGettingSiteInformation {
@@ -666,6 +675,15 @@ namespace Microsoft.PythonTools {
         public static string EnvironmentDeleteConfirmation {
             get {
                 return ResourceManager.GetString("EnvironmentDeleteConfirmation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to &apos;{0}&apos; will be removed from the project and all its contents will be deleted from disk..
+        /// </summary>
+        public static string EnvironmentDeleteConfirmation_NoPath {
+            get {
+                return ResourceManager.GetString("EnvironmentDeleteConfirmation_NoPath", resourceCulture);
             }
         }
         
@@ -1280,6 +1298,15 @@ namespace Microsoft.PythonTools {
         public static string MissingEnvironmentUnknownVersion {
             get {
                 return ResourceManager.GetString("MissingEnvironmentUnknownVersion", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to  (missing).
+        /// </summary>
+        public static string MissingSuffix {
+            get {
+                return ResourceManager.GetString("MissingSuffix", resourceCulture);
             }
         }
         
