@@ -273,15 +273,15 @@ namespace Microsoft.PythonTools.Intellisense {
             _interpreterFactory = factory;
             _allConfigs = registry.Configurations.ToArray();
 
-            var interpreter = factory.CreateInterpreter();
-            if (interpreter != null) {
-                try {
+            try {
+                var interpreter = factory.CreateInterpreter();
+                if (interpreter != null) {
                     _pyAnalyzer = PythonAnalyzer.Create(factory, interpreter);
                     await _pyAnalyzer.ReloadModulesAsync();
                     interpreter.ModuleNamesChanged += OnModulesChanged;
-                } catch (InvalidOperationException ex) {
-                    error = ex.ToString();
                 }
+            } catch (Exception ex) when (!ex.IsCriticalException()) {
+                error = ex.ToString();
             }
 
             return new AP.InitializeResponse() {
@@ -1472,7 +1472,7 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         private Response AnalyzeFile(AP.AddFileRequest request) {
-            var entry = AnalyzeFile(request.path, request.addingFromDir);
+            var entry = AnalyzeFile(request.path, request.addingFromDir, request.isTemporaryFile, request.suppressErrorLists);
 
             if (entry != null) {
                 return new AP.AddFileResponse() {
@@ -1491,7 +1491,7 @@ namespace Microsoft.PythonTools.Intellisense {
             };
 
             for(int i = 0; i < request.path.Length; ++i) {
-                var entry = AnalyzeFile(request.path[i], request.addingFromDir);
+                var entry = AnalyzeFile(request.path[i], request.addingFromDir, false, false);
 
                 if (entry != null) {
                     response.fileId[i] = ProjectEntryMap.GetId(entry);
@@ -1780,7 +1780,7 @@ namespace Microsoft.PythonTools.Intellisense {
             return item;
         }
 
-        internal IProjectEntry AnalyzeFile(string path, string addingFromDirectory) {
+        internal IProjectEntry AnalyzeFile(string path, string addingFromDirectory, bool isTemporaryFile, bool suppressErrorList) {
             if (_pyAnalyzer == null) {
                 // We aren't able to analyze code, so don't create an entry.
                 return null;
@@ -1801,7 +1801,9 @@ namespace Microsoft.PythonTools.Intellisense {
                     // response.
                     _connection.SendEventAsync(new AP.ChildFileAnalyzed() {
                         fileId = ProjectEntryMap.GetId(module),
-                        filename = module.FilePath
+                        filename = module.FilePath,
+                        isTemporaryFile = isTemporaryFile,
+                        suppressErrorList = suppressErrorList
                     }).WaitAndUnwrapExceptions();
                 }
                 EnqueueFile(item, path);

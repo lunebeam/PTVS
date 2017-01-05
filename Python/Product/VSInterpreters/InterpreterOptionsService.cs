@@ -122,10 +122,6 @@ namespace Microsoft.PythonTools.Interpreter {
                 id = interpreterOptions?.GetValue(DefaultInterpreterSetting) as string;
             }
 
-            if (string.IsNullOrEmpty(id)) {
-                return null;
-            }
-
             InterpreterConfiguration newDefault = null;
             if (!string.IsNullOrEmpty(id)) {
                 newDefault = _registryService.Value.FindConfiguration(id);
@@ -134,9 +130,15 @@ namespace Microsoft.PythonTools.Interpreter {
             if (newDefault == null) {
                 var defaultConfig = _registryService.Value.Configurations.LastOrDefault(c => c.CanBeAutoDefault());
                 id = defaultConfig?.Id;
+            
+                if (!string.IsNullOrEmpty(id)) {
+                    using (var interpreterOptions = Registry.CurrentUser.CreateSubKey(DefaultInterpreterOptionsCollection)) {
+                        interpreterOptions?.SetValue(DefaultInterpreterSetting, id);
+                    }
+                }
             }
 
-            return id;
+            return id ?? string.Empty;
         }
 
         private void SaveDefaultInterpreterId() {
@@ -146,10 +148,9 @@ namespace Microsoft.PythonTools.Interpreter {
             try {
                 using (var interpreterOptions = Registry.CurrentUser.CreateSubKey(DefaultInterpreterOptionsCollection, true)) {
                     if (string.IsNullOrEmpty(id)) {
-                        interpreterOptions.SetValue(DefaultInterpreterSetting, "");
+                        interpreterOptions.DeleteValue(DefaultInterpreterSetting, false);
                     } else {
                         Debug.Assert(!InterpreterRegistryConstants.IsNoInterpretersFactory(id));
-
                         interpreterOptions.SetValue(DefaultInterpreterSetting, id);
                     }
                 }
@@ -204,7 +205,9 @@ namespace Microsoft.PythonTools.Interpreter {
                     // We've loaded and found the factory already
                     return factory;
                 }
-                if (_defaultInterpreterId == string.Empty) {
+                // FxCop won't let us compare to String.Empty, so we do
+                // two comparisons for "performance reasons"
+                if (_defaultInterpreterId != null && string.IsNullOrEmpty(_defaultInterpreterId)) {
                     // We've loaded, and there's nothing there
                     return _registryService.Value.NoInterpretersValue;
                 }
