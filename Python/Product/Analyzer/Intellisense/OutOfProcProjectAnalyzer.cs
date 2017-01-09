@@ -188,9 +188,15 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         internal void ReportUnhandledException(Exception ex) {
-            _connection.SendEventAsync(
-                new AP.UnhandledExceptionEvent(ex)
-            ).Wait();
+            try {
+                _connection.SendEventAsync(
+                    new AP.UnhandledExceptionEvent(ex)
+                ).Wait();
+            } catch (Exception) {
+                // We're in pretty bad state, but nothing useful we can do about
+                // it.
+                Debug.Fail("Unhandled exception reporting unhandled exception");
+            }
         }
 
         private async Task<Response> Initialize(AP.InitializeRequest request) {
@@ -273,15 +279,15 @@ namespace Microsoft.PythonTools.Intellisense {
             _interpreterFactory = factory;
             _allConfigs = registry.Configurations.ToArray();
 
-            var interpreter = factory.CreateInterpreter();
-            if (interpreter != null) {
-                try {
+            try {
+                var interpreter = factory.CreateInterpreter();
+                if (interpreter != null) {
                     _pyAnalyzer = PythonAnalyzer.Create(factory, interpreter);
                     await _pyAnalyzer.ReloadModulesAsync();
                     interpreter.ModuleNamesChanged += OnModulesChanged;
-                } catch (InvalidOperationException ex) {
-                    error = ex.ToString();
                 }
+            } catch (Exception ex) when (!ex.IsCriticalException()) {
+                error = ex.ToString();
             }
 
             return new AP.InitializeResponse() {
