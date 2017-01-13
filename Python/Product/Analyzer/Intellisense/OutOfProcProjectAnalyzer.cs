@@ -76,6 +76,7 @@ namespace Microsoft.PythonTools.Intellisense {
         internal OutOfProcProjectAnalyzer(Stream writer, Stream reader) {
             _analysisQueue = new AnalysisQueue(this);
             _analysisQueue.AnalysisComplete += AnalysisQueue_Complete;
+            _analysisQueue.AnalysisAborted += AnalysisQueue_Aborted;
             _options = new AP.OptionsChangedEvent() {
                 indentation_inconsistency_severity = Severity.Ignore
             };
@@ -91,6 +92,11 @@ namespace Microsoft.PythonTools.Intellisense {
             _container = new CompositionContainer(_catalog);
             _container.ExportsChanged += ContainerExportsChanged;
         }
+
+        private void AnalysisQueue_Aborted(object sender, EventArgs e) {
+            _connection.Dispose();
+        }
+
 
         private void ContainerExportsChanged(object sender, ExportsChangeEventArgs e) {
             // figure out the new extensions...
@@ -152,8 +158,9 @@ namespace Microsoft.PythonTools.Intellisense {
                 case AP.AddBulkFileRequest.Command: response = AnalyzeFile((AP.AddBulkFileRequest)request); break;
                 case AP.TopLevelCompletionsRequest.Command: response = GetTopLevelCompletions(request); break;
                 case AP.CompletionsRequest.Command: response = GetCompletions(request); break;
+                case AP.GetAllMembersRequest.Command: response = GetAllMembers(request); break;
                 case AP.GetModulesRequest.Command: response = GetModules(request); break;
-                case AP.GetModuleMembers.Command: response = GeModuleMembers(request); break;
+                case AP.GetModuleMembersRequest.Command: response = GeModuleMembers(request); break;
                 case AP.SignaturesRequest.Command: response = GetSignatures((AP.SignaturesRequest)request); break;
                 case AP.QuickInfoRequest.Command: response = GetQuickInfo((AP.QuickInfoRequest)request); break;
                 case AP.AnalyzeExpressionRequest.Command: response = AnalyzeExpression((AP.AnalyzeExpressionRequest)request); break;
@@ -192,10 +199,18 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         internal void ReportUnhandledException(Exception ex) {
+            SendUnhandledException(ex);
+            // Allow some time for the other threads to write the event before
+            // we (probably) come crashing down.
+            Thread.Sleep(100);
+        }
+
+        private async void SendUnhandledException(Exception ex) {
             try {
-                _connection.SendEventAsync(
+                Debug.Fail(ex.ToString());
+                await _connection.SendEventAsync(
                     new AP.UnhandledExceptionEvent(ex)
-                ).Wait();
+                ).ConfigureAwait(false);
             } catch (Exception) {
                 // We're in pretty bad state, but nothing useful we can do about
                 // it.
@@ -1379,7 +1394,7 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         private Response GeModuleMembers(Request request) {
-            var getModuleMembers = (AP.GetModuleMembers)request;
+            var getModuleMembers = (AP.GetModuleMembersRequest)request;
 
             return new AP.CompletionsResponse() {
                 completions = ToCompletions(
@@ -1422,6 +1437,30 @@ namespace Microsoft.PythonTools.Intellisense {
 
             return new AP.CompletionsResponse() {
                 completions = ToCompletions(members.ToArray(), completions.options)
+            };
+        }
+
+        private Response GetAllMembers(Request request) {
+            var req = (AP.GetAllMembersRequest)request;
+
+            var members = Enumerable.Empty<MemberResult>();
+            var opts = GetMemberOptions.ExcludeBuiltins | GetMemberOptions.DeclaredOnly | req.options;
+
+            foreach (var entry in _projectFiles) {
+                var analysis = (entry.Value as IPythonProjectEntry)?.Analysis;
+                if (analysis != null) {
+                    members = members.Concat(analysis.GetAllAvailableMembers(SourceLocation.None, opts)
+                        .Where(mr => mr.Values.Any(v => v.DeclaringModule == entry.Value)));
+                }
+            }
+
+            if (!string.IsNullOrEmpty(req.prefix)) {
+                members = members.Where(mr => mr.Name.StartsWith(req.prefix));
+            }
+            members = members.GroupBy(mr => mr.Name).Select(g => g.First());
+
+            return new AP.CompletionsResponse() {
+                completions = ToCompletions(members.ToArray(), opts)
             };
         }
 
