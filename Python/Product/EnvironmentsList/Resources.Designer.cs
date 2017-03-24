@@ -79,7 +79,7 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The interpreter architecture is used when debugging and profiling. This should be set to match the target architecture of the interpreter, rather than the architecture of your operating system..
+        ///   Looks up a localized string similar to The architecture helps distinguish similar interpreters. This should be set to match the target architecture of the interpreter, rather than the architecture of your operating system..
         /// </summary>
         public static string ConfigurationExtensionArchitectureHelp {
             get {
@@ -160,7 +160,7 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to These settings may be configured for this environment. Check the tooltips for each field for more information and examples..
+        ///   Looks up a localized string similar to These environment settings may be configured. The tooltips on each field include more information and examples..
         /// </summary>
         public static string ConfigurationExtensionHelpContent {
             get {
@@ -178,7 +178,7 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The interpreter path is the executable file normally used to start Python. Normally this is called &amp;quot;python.exe&amp;quot;, but it may be different for some interpreters..
+        ///   Looks up a localized string similar to The interpreter path is the executable file used to run Python. Normally this is called &amp;quot;python.exe&amp;quot;, but it may be different for some interpreters..
         /// </summary>
         public static string ConfigurationExtensionInterpreterPathHelp {
             get {
@@ -439,6 +439,15 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Disable IPython interactive mode.
+        /// </summary>
+        public static string EnvironmentPathsExtensionDisableIPythonAutomationName {
+            get {
+                return ResourceManager.GetString("EnvironmentPathsExtensionDisableIPythonAutomationName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Use IPython interactive mode.
         /// </summary>
         public static string EnvironmentPathsExtensionDisableIPythonLabel {
@@ -453,6 +462,15 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         public static string EnvironmentPathsExtensionDisplayName {
             get {
                 return ResourceManager.GetString("EnvironmentPathsExtensionDisplayName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enable IPython interactive mode.
+        /// </summary>
+        public static string EnvironmentPathsExtensionEnableIPythonAutomationName {
+            get {
+                return ResourceManager.GetString("EnvironmentPathsExtensionEnableIPythonAutomationName", resourceCulture);
             }
         }
         
@@ -534,6 +552,33 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         public static string EnvironmentPathsExtensionSupportInformationLabel {
             get {
                 return ResourceManager.GetString("EnvironmentPathsExtensionSupportInformationLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Interpreter path.
+        /// </summary>
+        public static string EnvironmentPathsInterpreterPath {
+            get {
+                return ResourceManager.GetString("EnvironmentPathsInterpreterPath", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Interpreter directory.
+        /// </summary>
+        public static string EnvironmentPathsPrefixPath {
+            get {
+                return ResourceManager.GetString("EnvironmentPathsPrefixPath", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Windows interpreter path.
+        /// </summary>
+        public static string EnvironmentPathsWindowsInterpreterPath {
+            get {
+                return ResourceManager.GetString("EnvironmentPathsWindowsInterpreterPath", resourceCulture);
             }
         }
         
@@ -749,7 +794,7 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to These packages can be managed using your environment&apos;s package manager. Type in the search box to install new packages, or use the buttons on the right to manage those that are already installed..
+        ///   Looks up a localized string similar to These packages can be managed using your environment&apos;s package manager. Type in the search box to install new packages, or use the buttons on existing packages to update or remove them..
         /// </summary>
         public static string PipExtensionHelpContent {
             get {
@@ -835,6 +880,42 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         public static string StandardLibraryModuleListItem {
             get {
                 return ResourceManager.GetString("StandardLibraryModuleListItem", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Environment pages.
+        /// </summary>
+        public static string ToolWindow_ExtensionsName {
+            get {
+                return ResourceManager.GetString("ToolWindow_ExtensionsName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Environment page help.
+        /// </summary>
+        public static string ToolWindow_HelpContentName {
+            get {
+                return ResourceManager.GetString("ToolWindow_HelpContentName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Toggle page help.
+        /// </summary>
+        public static string ToolWindow_HelpVisibilityName {
+            get {
+                return ResourceManager.GetString("ToolWindow_HelpVisibilityName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Python environments.
+        /// </summary>
+        public static string ToolWindow_ListOfEnvironmentsName {
+            get {
+                return ResourceManager.GetString("ToolWindow_ListOfEnvironmentsName", resourceCulture);
             }
         }
         

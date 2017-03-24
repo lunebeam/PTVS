@@ -32,8 +32,16 @@ namespace Microsoft.PythonTools.Ipc.Json {
         private readonly Dictionary<string, Type> _types;
         private readonly Func<RequestArgs, Func<Response, Task>, Task> _requestHandler;
         private readonly Stream _writer, _reader;
+        private readonly TextWriter _logFile;
+        private readonly object _logFileLock;
         private int _seq;
         private static char[] _headerSeparator = new[] { ':' };
+
+        // Exposed settings for tests
+        internal static bool AlwaysLog = false;
+        internal static string LoggingBaseDirectory = Path.GetTempPath();
+
+        private const string LoggingRegistrySubkey = @"Software\Microsoft\PythonTools\ConnectionLog";
 
         /// <summary>
         /// Creates a new connection object for doing client/server communication.  
@@ -45,13 +53,93 @@ namespace Microsoft.PythonTools.Ipc.Json {
         /// where command_name and event_name correspond to the fields in the Request and Event objects.  The type is the type of object
         /// which will be deserialized and instantiated.  If a type is not registered a GenericRequest or GenericEvent object will be created
         /// which will include the complete body of the request as a dictionary.</param>
-        public Connection(Stream writer, Stream reader, Func<RequestArgs, Func<Response, Task>, Task> requestHandler = null,
-            Dictionary<string, Type> types = null) {
+        public Connection(
+            Stream writer,
+            Stream reader,
+            Func<RequestArgs, Func<Response, Task>, Task> requestHandler = null,
+            Dictionary<string, Type> types = null,
+            string connectionLogKey = null
+        ) {
             _requestCache = new Dictionary<int, RequestInfo>();
             _requestHandler = requestHandler;
             _types = types;
             _writer = writer;
             _reader = reader;
+            _logFile = OpenLogFile(connectionLogKey);
+            // FxCop won't let us lock a MarshalByRefObject, so we create
+            // a plain old object that we can log against.
+            if (_logFile != null) {
+                _logFileLock = new object();
+            }
+        }
+
+        /// <summary>
+        /// Opens the log file for this connection. The log must be enabled in
+        /// the registry under HKCU\Software\Microsoft\PythonTools\ConnectionLog
+        /// with the connectionLogKey value set to a non-zero integer or
+        /// non-empty string.
+        /// </summary>
+        private static TextWriter OpenLogFile(string connectionLogKey) {
+            if (!AlwaysLog) {
+                if (string.IsNullOrEmpty(connectionLogKey)) {
+                    return null;
+                }
+
+                using (var root = Win32.Registry.CurrentUser.OpenSubKey(LoggingRegistrySubkey, false)) {
+                    var value = root?.GetValue(connectionLogKey);
+                    int? asInt = value as int?;
+                    if (asInt.HasValue) {
+                        if (asInt.GetValueOrDefault() == 0) {
+                            // REG_DWORD but 0 means no logging
+                            return null;
+                        }
+                    } else if (string.IsNullOrEmpty(value as string)) {
+                        // Empty string or no value means no logging
+                        return null;
+                    }
+                }
+            }
+
+            var filenameBase = Path.Combine(
+                LoggingBaseDirectory,
+                string.Format("PythonTools_{0}_{1}_{2:yyyyMMddHHmmss}", connectionLogKey, Process.GetCurrentProcess().Id.ToString(), DateTime.Now)
+            );
+
+            string filename = filenameBase + ".log";
+            for (int counter = 0; counter < int.MaxValue; ++counter) {
+                try {
+                    var file = new FileStream(filename, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite);
+                    return new StreamWriter(file, Encoding.UTF8);
+                } catch (IOException) {
+                } catch (UnauthorizedAccessException) {
+                }
+                filename = string.Format("{0}_{1}.log", filenameBase, ++counter);
+            }
+            return null;
+        }
+
+        private void LogToDisk(string message) {
+            if (_logFile == null || _logFileLock == null) {
+                return;
+            }
+            try {
+                lock (_logFileLock) {
+                    _logFile.WriteLine(message);
+                    _logFile.Flush();
+                }
+            } catch (IOException) {
+            } catch (ObjectDisposedException) {
+            }
+        }
+
+        private void LogToDisk(Exception ex) {
+            if (_logFile == null || _logFileLock == null) {
+                return;
+            }
+            // Should have immediately logged a message before, so the exception
+            // will have context automatically. Stack trace will not be
+            // interesting because of the async-ness.
+            LogToDisk(string.Format("{0}: {1}", ex.GetType().Name, ex.Message));
         }
 
         /// <summary>
@@ -273,6 +361,7 @@ namespace Microsoft.PythonTools.Ipc.Json {
                     r.Cancel();
                 }
             }
+            _logFile?.Dispose();
         }
 
 
@@ -352,23 +441,29 @@ namespace Microsoft.PythonTools.Ipc.Json {
         /// </summary>
         private async Task SendMessage(ProtocolMessage packet, CancellationToken cancel) {
             var str = JsonConvert.SerializeObject(packet);
-            var bytes = Encoding.UTF8.GetBytes(str);
+            LogToDisk(str);
             try {
-                await _writeLock.WaitAsync(cancel).ConfigureAwait(false);
-            } catch (ArgumentNullException) {
-                throw new ObjectDisposedException(nameof(_writeLock));
-            } catch (ObjectDisposedException) {
-                throw new ObjectDisposedException(nameof(_writeLock));
-            }
-            try {
-                var contentLengthStr = "Content-Length: " + bytes.Length + "\n\n";
-                var contentLength = Encoding.UTF8.GetBytes(contentLengthStr);
+                var bytes = Encoding.UTF8.GetBytes(str);
+                try {
+                    await _writeLock.WaitAsync(cancel).ConfigureAwait(false);
+                } catch (ArgumentNullException) {
+                    throw new ObjectDisposedException(nameof(_writeLock));
+                } catch (ObjectDisposedException) {
+                    throw new ObjectDisposedException(nameof(_writeLock));
+                }
+                try {
+                    var contentLengthStr = "Content-Length: " + bytes.Length + "\n\n";
+                    var contentLength = Encoding.UTF8.GetBytes(contentLengthStr);
 
-                await _writer.WriteAsync(contentLength, 0, contentLength.Length).ConfigureAwait(false);
-                await _writer.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
-                await _writer.FlushAsync(cancel).ConfigureAwait(false);
-            } finally {
-                _writeLock.Release();
+                    await _writer.WriteAsync(contentLength, 0, contentLength.Length).ConfigureAwait(false);
+                    await _writer.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
+                    await _writer.FlushAsync(cancel).ConfigureAwait(false);
+                } finally {
+                    _writeLock.Release();
+                }
+            } catch (Exception ex) {
+                LogToDisk(ex);
+                throw;
             }
         }
 

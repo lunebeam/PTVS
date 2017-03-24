@@ -61,6 +61,15 @@ namespace Microsoft.PythonTools.Django {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add Django App....
+        /// </summary>
+        public static string AddDjangoApp {
+            get {
+                return ResourceManager.GetString("AddDjangoApp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to To ensure your project will deploy correctly to Microsoft Azure Cloud Service, add the Web Role Support Files item to your project through the Add New Item dialog and follow the instructions provided..
         /// </summary>
         public static string AddWebRoleSupportFiles {
@@ -178,7 +187,7 @@ namespace Microsoft.PythonTools.Django {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to The Python path to a settings module, e.g. &quot;myproject.settings.main&quot;. If this isn&apos;t provided, the DJANGO_SETTINGS_MODULE environment variable will be used..
+        ///   Looks up a localized string similar to The full name of your settings module, for example, &quot;myproject.settings&quot;. If not provided, the DJANGO_SETTINGS_MODULE environment variable will be used..
         /// </summary>
         public static string DjangoSettingsModuleHelp {
             get {
@@ -192,6 +201,15 @@ namespace Microsoft.PythonTools.Django {
         public static string DjangoTagsCompletionSetDisplayName {
             get {
                 return ResourceManager.GetString("DjangoTagsCompletionSetDisplayName", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Django template tag.
+        /// </summary>
+        public static string DjangoTemplateTag {
+            get {
+                return ResourceManager.GetString("DjangoTemplateTag", resourceCulture);
             }
         }
         
