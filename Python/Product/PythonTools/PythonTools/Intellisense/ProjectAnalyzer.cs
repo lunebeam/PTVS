@@ -90,6 +90,9 @@ namespace Microsoft.PythonTools.Intellisense {
         internal Task ReloadTask;
         internal int _parsePending;
 
+        // Used by tests to avoid creating TaskProvider objects
+        internal static bool SuppressTaskProvider = false;
+
         /// <summary>
         /// The recommended timeout to use when waiting on analysis information.
         /// </summary>
@@ -168,8 +171,10 @@ namespace Microsoft.PythonTools.Intellisense {
                 throw new ArgumentNullException(nameof(factory));
             }
 
-            _errorProvider = (ErrorTaskProvider)serviceProvider.GetService(typeof(ErrorTaskProvider));
-            _commentTaskProvider = (CommentTaskProvider)serviceProvider.GetService(typeof(CommentTaskProvider));
+            if (!SuppressTaskProvider) {
+                _errorProvider = (ErrorTaskProvider)serviceProvider.GetService(typeof(ErrorTaskProvider));
+                _commentTaskProvider = (CommentTaskProvider)serviceProvider.GetService(typeof(CommentTaskProvider));
+            }
             if (_errorProvider != null) {
                 _unresolvedSquiggles = new UnresolvedImportSquiggleProvider(serviceProvider, _errorProvider);
             }
@@ -728,6 +733,9 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             string path = GetFilePath(textBuffer);
+            if (string.IsNullOrEmpty(path)) {
+                return null;
+            }
 
             AnalysisEntry entry;
             if (!_projectFiles.TryGetValue(path, out entry)) {
@@ -769,6 +777,9 @@ namespace Microsoft.PythonTools.Intellisense {
                 // We aren't able to analyze code, so don't create an entry.
                 return null;
             }
+            if (string.IsNullOrEmpty(path)) {
+                return null;
+            }
 
             AnalysisEntry res;
             if (!_projectFiles.TryGetValue(path, out res)) {
@@ -800,7 +811,9 @@ namespace Microsoft.PythonTools.Intellisense {
             AnalysisEntry[] res = new AnalysisEntry[paths.Length];
             for (int i = 0; i < paths.Length; ++i) {
                 AnalysisEntry existing;
-                if (_projectFiles.TryGetValue(paths[i], out existing)) {
+                if (string.IsNullOrEmpty(paths[i])) {
+                    res[i] = null;
+                } else if (_projectFiles.TryGetValue(paths[i], out existing)) {
                     res[i] = existing;
                 } else {
                     anyAdded = true;
@@ -816,7 +829,7 @@ namespace Microsoft.PythonTools.Intellisense {
                         AnalysisEntry entry = null;
                         var path = paths[i];
                         var id = response.fileId[i];
-                        if (id != -1 && !_projectFilesById.TryGetValue(id, out entry)) {
+                        if (!string.IsNullOrEmpty(path) && id != -1 && !_projectFilesById.TryGetValue(id, out entry)) {
                             entry = _projectFilesById[id] = _projectFiles[path] = new AnalysisEntry(this, path, id);
                             entry.AnalysisCookie = new FileCookie(path);
                         }
@@ -831,7 +844,7 @@ namespace Microsoft.PythonTools.Intellisense {
 
         internal AnalysisEntry GetAnalysisEntryFromPath(string path) {
             AnalysisEntry res;
-            if (_projectFiles.TryGetValue(path, out res)) {
+            if (!string.IsNullOrEmpty(path) && _projectFiles.TryGetValue(path, out res)) {
                 return res;
             }
             return null;
