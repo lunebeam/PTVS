@@ -34,6 +34,7 @@ using Microsoft.PythonTools.Project;
 using Microsoft.VisualStudio.InteractiveWindow;
 using Microsoft.VisualStudio.InteractiveWindow.Commands;
 using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudio.Utilities;
@@ -167,7 +168,12 @@ namespace Microsoft.PythonTools.Repl {
                     _analyzer = _serviceProvider.GetPythonToolsService().DefaultAnalyzer;
                 } else {
                     var projectFile = GetAssociatedPythonProject(config.Interpreter)?.BuildProject;
-                    _analyzer = new VsProjectAnalyzer(_serviceProvider, factory, projectFile: projectFile);
+                    _analyzer = new VsProjectAnalyzer(
+                        _serviceProvider,
+                        factory,
+                        projectFile: projectFile,
+                        comment: "{0} Interactive".FormatInvariant(DisplayName.IfNullOrEmpty("Unnamed"))
+                    );
                 }
                 return _analyzer;
             }
@@ -313,7 +319,10 @@ namespace Microsoft.PythonTools.Repl {
         }
 
         public bool CanExecuteCode(string text) {
-            if (text.EndsWith("\n") || string.IsNullOrEmpty(text)) {
+            if (string.IsNullOrEmpty(text)) {
+                return true;
+            }
+            if (string.IsNullOrWhiteSpace(text) && text.EndsWith("\n")) {
                 return true;
             }
 
@@ -321,7 +330,10 @@ namespace Microsoft.PythonTools.Repl {
             using (var parser = Parser.CreateParser(new StringReader(text), LanguageVersion)) {
                 ParseResult pr;
                 parser.ParseInteractiveCode(out pr);
-                if (pr == ParseResult.Empty || pr == ParseResult.IncompleteToken || pr == ParseResult.IncompleteStatement) {
+                if (pr == ParseResult.IncompleteStatement) {
+                    return text.EndsWith("\n");
+                }
+                if (pr == ParseResult.Empty || pr == ParseResult.IncompleteToken) {
                     return false;
                 }
             }
@@ -452,12 +464,20 @@ namespace Microsoft.PythonTools.Repl {
         ) {
             // TODO: Allow customizing the scripts path
             //var root = _serviceProvider.GetPythonToolsService().InteractiveOptions.ScriptsPath;
-            var root = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            string root;
+            try {
+                if (!provider.TryGetShellProperty((__VSSPROPID)__VSSPROPID2.VSSPROPID_VisualStudioDir, out root)) {
+                    root = PathUtils.GetAbsoluteDirectoryPath(
+                        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                        "Visual Studio {0}".FormatInvariant(AssemblyVersionInfo.VSName)
+                    );
+                }
 
-            root = PathUtils.GetAbsoluteDirectoryPath(root, Path.Combine(
-                "Visual Studio " + AssemblyVersionInfo.VSName,
-                "Python Scripts"
-            ));
+                root = PathUtils.GetAbsoluteDirectoryPath(root, "Python Scripts");
+            } catch (ArgumentException ex) {
+                ex.ReportUnhandledException(provider, typeof(PythonInteractiveEvaluator));
+                return null;
+            }
 
             string candidate;
             if (!string.IsNullOrEmpty(displayName)) {

@@ -162,7 +162,8 @@ namespace Microsoft.PythonTools.Intellisense {
             IServiceProvider serviceProvider,
             IPythonInterpreterFactory factory,
             bool implicitProject = true,
-            MSBuild.Project projectFile = null
+            MSBuild.Project projectFile = null,
+            string comment = null
         ) {
             if (serviceProvider == null) {
                 throw new ArgumentNullException(nameof(serviceProvider));
@@ -200,7 +201,7 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             _conn = StartConnection(
-                projectFile?.FullPath ?? (implicitProject ? "Global Analysis" : "Misc. Non Project Analysis"),
+                comment.IfNullOrEmpty(projectFile?.FullPath).IfNullOrEmpty(implicitProject ? "Global Analysis" : "Misc. Non Project Analysis"),
                 out _analysisProcess
             );
             _userCount = 1;
@@ -373,6 +374,7 @@ namespace Microsoft.PythonTools.Intellisense {
                     // race w/ process exit...
                 }
                 _analysisProcess.Dispose();
+                _conn?.Dispose();
             });
 
             try {
@@ -380,7 +382,6 @@ namespace Microsoft.PythonTools.Intellisense {
                 _processExitedCancelSource.Dispose();
             } catch (ObjectDisposedException) {
             }
-            _conn?.Dispose();
         }
 
         #endregion
@@ -2132,11 +2133,23 @@ namespace Microsoft.PythonTools.Intellisense {
             var snapshot = translator.TextBuffer.CurrentSnapshot;
             foreach (var tag in tags) {
                 // translate the span from the version we last parsed to the current version
-                var span = translator.TranslateForward(Span.FromBounds(tag.startIndex, tag.endIndex));
-
+                SnapshotSpan span;
                 int headerIndex = tag.headerIndex;
-                if (tag.headerIndex != -1) {
-                    headerIndex = translator.TranslateForward(headerIndex);
+
+                try {
+                    span = translator.TranslateForward(Span.FromBounds(tag.startIndex, tag.endIndex));
+                } catch (ArgumentOutOfRangeException) {
+                    // Failed to get the "correct" span, so skip this tag
+                    continue;
+                }
+
+                if (headerIndex >= 0) {
+                    try {
+                        headerIndex = translator.TranslateForward(headerIndex);
+                    } catch (ArgumentOutOfRangeException) {
+                        // Failed to get the correct header index, so use the start point
+                        headerIndex = -1;
+                    }
                 }
 
                 yield return OutliningTaggerProvider.OutliningTagger.GetTagSpan(

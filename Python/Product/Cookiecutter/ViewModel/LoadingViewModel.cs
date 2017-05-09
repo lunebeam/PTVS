@@ -15,10 +15,12 @@
 // permissions and limitations under the License.
 
 namespace Microsoft.CookiecutterTools.ViewModel {
-    class LoadingViewModel {
+    class LoadingViewModel : TreeItemViewModel {
         public LoadingViewModel() {
         }
 
         public bool Selectable => false;
+
+        public override string ToString() => Strings.SearchPage_LoadingTemplate;
     }
 }

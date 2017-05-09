@@ -476,9 +476,18 @@ namespace Microsoft.CookiecutterTools.ViewModel {
             SearchResults.Add(Recommended);
             SearchResults.Add(GitHub);
 
-            var recommendedTask = AddFromSourceAsync(_recommendedSource, searchTerm, Recommended, ct);
-            var installedTask = AddFromSourceAsync(_installedSource, searchTerm, Installed, ct);
-            var githubTask = AddFromSourceAsync(_githubSource, searchTerm, GitHub, ct);
+            // Ensure that there's a selection, to avoid focus issues
+            // when tabbing to the search results.
+            if (!SearchResults.Any(cat => cat.IsSelected)) {
+                var first = SearchResults.FirstOrDefault();
+                if (first != null) {
+                    first.IsSelected = true;
+                }
+            }
+
+            var recommendedTask = AddFromSourceAsync(_recommendedSource, searchTerm, Recommended, false, ct);
+            var installedTask = AddFromSourceAsync(_installedSource, searchTerm, Installed, false, ct);
+            var githubTask = AddFromSourceAsync(_githubSource, searchTerm, GitHub, false, ct);
 
             await Task.WhenAll(recommendedTask, installedTask, githubTask);
         }
@@ -579,7 +588,7 @@ namespace Microsoft.CookiecutterTools.ViewModel {
                     _templateRefreshCancelTokenSource = new CancellationTokenSource();
                     try {
                         Installed.Templates.Clear();
-                        await AddFromSourceAsync(_installedSource, SearchTerm, Installed, CancellationToken.None);
+                        await AddFromSourceAsync(_installedSource, SearchTerm, Installed, false, CancellationToken.None);
                     } catch (OperationCanceledException) {
                     }
 
@@ -894,7 +903,7 @@ namespace Microsoft.CookiecutterTools.ViewModel {
                 try {
                     GitHub.Templates.Remove(last);
                     ReportEvent(CookiecutterTelemetry.TelemetryArea.Search, CookiecutterTelemetry.SearchEvents.More);
-                    await AddFromSourceAsync(_githubSource, null, GitHub, _templateRefreshCancelTokenSource.Token, continuationToken);
+                    await AddFromSourceAsync(_githubSource, null, GitHub, true, _templateRefreshCancelTokenSource.Token, continuationToken);
                 } catch (OperationCanceledException) {
                 }
             }
@@ -937,12 +946,16 @@ namespace Microsoft.CookiecutterTools.ViewModel {
             ITemplateSource source,
             string searchTerm,
             CategorizedViewModel parent,
+            bool alterSelection,
             CancellationToken ct,
             string continuationToken = null,
             VisualStudio.Imaging.Interop.ImageMoniker? updateableImage = null
         ) {
             var loading = new LoadingViewModel();
             parent.Templates.Add(loading);
+            if (alterSelection) {
+                loading.IsSelected = true;
+            }
 
             try {
                 var result = await source.GetTemplatesAsync(searchTerm, continuationToken, ct);
@@ -963,7 +976,8 @@ namespace Microsoft.CookiecutterTools.ViewModel {
                 ct.ThrowIfCancellationRequested();
 
                 if (result.ContinuationToken != null) {
-                    parent.Templates.Add(new ContinuationViewModel(result.ContinuationToken));
+                    var loadMore = new ContinuationViewModel(result.ContinuationToken);
+                    parent.Templates.Add(loadMore);
                 }
             } catch (TemplateEnumerationException ex) {
                 var template = new ErrorViewModel() {
@@ -972,7 +986,17 @@ namespace Microsoft.CookiecutterTools.ViewModel {
                 };
                 parent.Templates.Add(template);
             } finally {
+                // Check if the loading item is still selected before we remove it, the user
+                // may have selected something else while we were loading results.
+                bool loadingStillSelected = loading.IsSelected;
                 parent.Templates.Remove(loading);
+                if (alterSelection && loadingStillSelected) {
+                    // Loading was still selected, so select something else.
+                    var newLast = parent.Templates.LastOrDefault() as TreeItemViewModel;
+                    if (newLast != null) {
+                        newLast.IsSelected = true;
+                    }
+                }
             }
         }
 
