@@ -694,7 +694,9 @@
     <None Include="ptvsd\attach_server.py" />
     <None Include="Theme\Microsoft.PythonTools.theme.v14.0.pkgdef" />
     <None Include="Theme\Microsoft.PythonTools.theme.v15.0.pkgdef" />
-    <None Include="Theme\dark.vstheme" />
+    <None Include="Theme\dark.vstheme">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Theme\make_theme_pkgdef.py" />
     <Content Include="NoInterpreters.html">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -706,7 +708,9 @@
     </Content>
     <None Include="ptvsd\__init__.py" />
     <None Include="Theme\Repl\blue.vstheme" />
-    <None Include="Theme\Repl\contrast.vstheme" />
+    <None Include="Theme\Repl\contrast.vstheme">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="Theme\Repl\dark.vstheme" />
     <None Include="Theme\Repl\light.vstheme" />
     <None Include="ptvsd\__main__.py" />
