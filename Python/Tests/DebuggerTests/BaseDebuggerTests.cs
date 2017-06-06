@@ -267,8 +267,10 @@ namespace DebuggerTests {
                                     }
                                 }
 
-                                await breakpoint.AddAsync(TimeoutToken());
+                                // Bind failed and succeeded events expect to find the breakpoint
+                                // in the dictionary, so update it before sending the add request.
                                 bps.Add(breakpoint, bp);
+                                await breakpoint.AddAsync(TimeoutToken());
                             }
 
                             OnProcessLoaded?.Invoke(newproc);
@@ -672,11 +674,17 @@ namespace DebuggerTests {
         }
 
         internal void TerminateProcess(PythonProcess p) {
+            // Killing the process will cause multiple ObjectDisposedException
+            // which are normal, since the communication stream is forcibly closed.
+            // Disable their logging to reduce the noise.
+            AssertListener.LogObjectDisposedExceptions = false;
             try {
                 p.Terminate();
             } catch (Exception ex) {
                 Console.WriteLine("Failed to detach process");
                 Console.WriteLine(ex);
+            } finally {
+                AssertListener.LogObjectDisposedExceptions = true;
             }
         }
 
