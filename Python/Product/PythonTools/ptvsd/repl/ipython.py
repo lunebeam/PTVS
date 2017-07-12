@@ -17,12 +17,12 @@
 """Implements REPL support over IPython/ZMQ for VisualStudio"""
 
 __author__ = "Microsoft Corporation <ptvshelp@microsoft.com>"
-__version__ = "3.0.0.0"
+__version__ = "3.1.0.0"
 
 import re
 import sys
-from visualstudio_py_repl import BasicReplBackend, ReplBackend, UnsupportedReplException, _command_line_to_args_list
-from visualstudio_py_util import to_bytes
+from ptvsd.repl import BasicReplBackend, ReplBackend, UnsupportedReplException, _command_line_to_args_list
+from ptvsd.util import to_bytes
 try:
     import thread
 except:
@@ -252,7 +252,9 @@ class VsStdInChannel(DefaultHandler, StdInChannel):
 
 
 class VsHBChannel(DefaultHandler, HBChannel):
-    pass
+    if is_ipython_versionorgreater(3, 0):
+        def call_handlers(self, time_since_last_hb):
+            pass
 
 
 class VsKernelManager(KernelManager, KernelClient):
@@ -339,23 +341,25 @@ exec(compile(%(contents)r, %(filename)r, 'exec'))
 
     def get_members(self, expression):
         """returns a tuple of the type name, instance members, and type members"""
-        text = expression + '.'
+        text = (expression + '.') if expression else ''
         if is_ipython_versionorgreater(3, 0):
             self.km.complete(text)
         else:
             self.km.shell_channel.complete(text, text, 1)
-                
+
         self.members_lock.acquire()
-        
+
         reply = self.complete_reply
-        
+
         res = {}
         text_len = len(text)
         for member in reply['matches']:
-            res[member[text_len:]] = 'object'
+            m_name = member[text_len:]
+            if not any(c in m_name for c in '%!?-.,'):
+                res[m_name] = 'object'
 
-        return ('unknown', res, {})
-        
+        return 'unknown', res, {}
+
     def get_signatures(self, expression):
         """returns doc, args, vargs, varkw, defaults."""
         
@@ -401,10 +405,10 @@ exec(compile(%(contents)r, %(filename)r, 'exec'))
 def __visualstudio_debugger_init():    
     import sys
     sys.path.append(''' + repr(path.dirname(__file__)) + ''')
-    import visualstudio_py_debugger
-    new_thread = visualstudio_py_debugger.new_thread()
+    import ptvsd.debugger
+    new_thread = ptvsd.debugger.new_thread()
     sys.settrace(new_thread.trace_func)
-    visualstudio_py_debugger.intercept_threads(True)
+    ptvsd.debugger.intercept_threads(True)
 
 __visualstudio_debugger_init()
 del __visualstudio_debugger_init
@@ -413,13 +417,13 @@ del __visualstudio_debugger_init
     def attach_process(self, port, debugger_id):
         self.run_command('''
 def __visualstudio_debugger_attach():
-    import visualstudio_py_debugger
+    import ptvsd.debugger
 
     def do_detach():
-        visualstudio_py_debugger.DETACH_CALLBACKS.remove(do_detach)
+        ptvsd.debugger.DETACH_CALLBACKS.remove(do_detach)
 
-    visualstudio_py_debugger.DETACH_CALLBACKS.append(do_detach)
-    visualstudio_py_debugger.attach_process(''' + str(port) + ''', ''' + repr(debugger_id) + ''', report = True, block = True)
+    ptvsd.debugger.DETACH_CALLBACKS.append(do_detach)
+    ptvsd.debugger.attach_process(''' + str(port) + ''', ''' + repr(debugger_id) + ''', report = True, block = True)
 
 __visualstudio_debugger_attach()
 del __visualstudio_debugger_attach

@@ -14,74 +14,127 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System;
-using System.Threading;
-using Microsoft.PythonTools;
-using Microsoft.PythonTools.Interpreter;
-using Microsoft.PythonTools.Options;
-using Microsoft.PythonTools.Parsing;
-using Microsoft.PythonTools.Repl;
-using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.VisualStudioTools;
-
 namespace TestUtilities.UI.Python {
-    public sealed class PythonReplWindowProxySettings : ReplWindowProxySettings {
-        public PythonReplWindowProxySettings() {
+    public sealed class ReplWindowProxySettings {
+        public ReplWindowProxySettings() {
             SourceFileName = "stdin";
             IntFirstMember = "bit_length";
             RawInput = "raw_input";
             IPythonIntDocumentation = Python2IntDocumentation;
+            ExitHelp = Python2ExitHelp;
             Print42Output = "42";
             ImportError = "ImportError: No module named {0}";
         }
 
-        public new PythonReplWindowProxySettings Clone() {
-            return (PythonReplWindowProxySettings)MemberwiseClone();
+        public ReplWindowProxySettings Clone() {
+            return (ReplWindowProxySettings)MemberwiseClone();
         }
 
-        public override void AssertValid() {
+        public void AssertValid() {
             Version.AssertInstalled();
         }
 
-        public override VisualStudioApp CreateApp() {
-            return new PythonVisualStudioApp();
-        }
+        public const string IronPython27ExitHelp = @"Help on Quitter in module site object:
 
-        public override ToolWindowPane ActivateInteractiveWindow(VisualStudioApp app, string executionMode) {
-            string description = null;
-            if (Version.IsCPython) {
-                description = string.Format("{0} {1}",
-                    Version.Isx64 ? "Python 64-bit" : "Python 32-bit",
-                    Version.Version.ToVersion()
-                );
-            } else if (Version.IsIronPython) {
-                description = string.Format("{0} {1}",
-                    Version.Isx64 ? "IronPython 64-bit" : "IronPython",
-                    Version.Version.ToVersion()
-                );
-            }
-            Assert.IsNotNull(description, "Unknown interpreter");
+class Quitter(__builtin__.object)
+ |  Methods defined here:
+ |  
+ |  __call__(self, code=None)
+ |  
+ |  __dict__ = <dictproxy object>
+ |  __init__(self, name)
+ |  
+ |  __repr__(self)
+ |  
+ |  __weakref__ = <attribute '__weakref__' of <class 'site.Quitter'> objects
+";
 
-            var automation = (IVsPython)app.Dte.GetObject("VsPython");
-            var options = (IPythonOptions)automation;
-            var replOptions = options.Interactive;
-            Assert.IsNotNull(replOptions, "Could not find options for " + description);
+        public const string Python2ExitHelp = @"Help on Quitter in module site object:
 
-            var oldAddNewLineAtEndOfFullyTypedWord = options.Intellisense.AddNewLineAtEndOfFullyTypedWord;
-            app.OnDispose(() => options.Intellisense.AddNewLineAtEndOfFullyTypedWord = oldAddNewLineAtEndOfFullyTypedWord);
-            options.Intellisense.AddNewLineAtEndOfFullyTypedWord = AddNewLineAtEndOfFullyTypedWord;
+class Quitter(__builtin__.object)
+ |  Methods defined here:
+ |  
+ |  __call__(self, code=None)
+ |  
+ |  __init__(self, name)
+ |  
+ |  __repr__(self)
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors defined here:
+ |  
+ |  __dict__
+ |      dictionary for instance variables (if defined)
+ |  
+ |  __weakref__
+ |      list of weak references to the object (if defined)
+";
 
-            var interpreters = app.ComponentModel.GetService<IInterpreterRegistryService>();
-            var replId = PythonReplEvaluatorProvider.GetEvaluatorId(
-                interpreters.FindConfiguration(Version.Id)
-            );
+        public const string Python3ExitHelp = @"Help on Quitter in module site object:
 
-            return app.ServiceProvider.GetUIThread().Invoke(() => {
-                var provider = app.ComponentModel.GetService<InteractiveWindowProvider>();
-                return (ToolWindowPane)provider.OpenOrCreate(replId);
-            });
-        }
+class Quitter(builtins.object)
+ |  Methods defined here:
+ |  
+ |  __call__(self, code=None)
+ |  
+ |  __init__(self, name)
+ |  
+ |  __repr__(self)
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors defined here:
+ |  
+ |  __dict__
+ |      dictionary for instance variables (if defined)
+ |  
+ |  __weakref__
+ |      list of weak references to the object (if defined)
+";
+
+        public const string Python34ExitHelp = @"Help on Quitter in module _sitebuiltins object:
+
+class Quitter(builtins.object)
+ |  Methods defined here:
+ |  
+ |  __call__(self, code=None)
+ |  
+ |  __init__(self, name, eof)
+ |  
+ |  __repr__(self)
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors defined here:
+ |  
+ |  __dict__
+ |      dictionary for instance variables (if defined)
+ |  
+ |  __weakref__
+ |      list of weak references to the object (if defined)
+";
+
+        public const string Python35ExitHelp = @"Help on Quitter in module _sitebuiltins object:
+
+class Quitter(builtins.object)
+ |  Methods defined here:
+ |  
+ |  __call__(self, code=None)
+ |      Call self as a function.
+ |  
+ |  __init__(self, name, eof)
+ |      Initialize self.  See help(type(self)) for accurate signature.
+ |  
+ |  __repr__(self)
+ |      Return repr(self).
+ |  
+ |  ----------------------------------------------------------------------
+ |  Data descriptors defined here:
+ |  
+ |  __dict__
+ |      dictionary for instance variables (if defined)
+ |  
+ |  __weakref__
+ |      list of weak references to the object (if defined)
+";
 
         public const string Python2IntDocumentation = @"Type:        int
 String form: 42
@@ -124,6 +177,8 @@ Base 0 means to interpret the base from the string as an integer literal.
         public string SourceFileName { get; set; }
 
         public string IPythonIntDocumentation { get; set; }
+
+        public string ExitHelp { get; set; }
 
         public string IntFirstMember { get; set; }
 

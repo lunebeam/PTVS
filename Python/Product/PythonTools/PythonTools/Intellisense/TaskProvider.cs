@@ -92,7 +92,6 @@ namespace Microsoft.PythonTools.Intellisense {
 
         public void CreateSquiggleSpan(SimpleTagger<ErrorTag> tagger) {
             if (_rawSpan.Length <= 0) {
-                Debug.Fail($"Expected span {_rawSpan} to be non-empty");
                 return;
             }
 
@@ -101,7 +100,6 @@ namespace Microsoft.PythonTools.Intellisense {
             );
 
             if (target.Length <= 0) {
-                Debug.Fail($"Expected translated span {target} to be non-empty");
                 return;
             }
 
@@ -490,6 +488,7 @@ namespace Microsoft.PythonTools.Intellisense {
         /// for the given project entry and moniker for the error source.
         /// </summary>
         public void RemoveBufferForErrorSource(AnalysisEntry entry, string moniker, ITextBuffer buffer) {
+            Clear(entry, moniker);
             lock (_errorSources) {
                 var key = new EntryKey(entry, moniker);
                 HashSet<ITextBuffer> buffers;
@@ -504,6 +503,7 @@ namespace Microsoft.PythonTools.Intellisense {
         /// the error source.
         /// </summary>
         public void ClearErrorSource(AnalysisEntry entry, string moniker) {
+            Clear(entry, moniker);
             lock (_errorSources) {
                 _errorSources.Remove(new EntryKey(entry, moniker));
             }

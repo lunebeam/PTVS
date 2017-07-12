@@ -149,7 +149,12 @@ namespace Microsoft.PythonTools.Repl {
                     scriptsPath = GetScriptsPath(_serviceProvider, Configuration.Interpreter.Description, Configuration.Interpreter);
                 }
 
-                if (!string.IsNullOrEmpty(scriptsPath)) {
+                // Allow tests to control the backend without relying on the mode.txt file
+                string backendOverride = _serviceProvider.GetPythonToolsService().InteractiveBackendOverride;
+                if (!string.IsNullOrEmpty(backendOverride)) {
+                    BackendName = backendOverride;
+                } else if (string.IsNullOrEmpty(BackendName) && !string.IsNullOrEmpty(scriptsPath)) {
+                    // If BackendName is already set, don't use the value in mode.txt
                     var modeFile = PathUtils.GetAbsoluteFilePath(scriptsPath, "mode.txt");
                     if (File.Exists(modeFile)) {
                         try {
@@ -158,6 +163,16 @@ namespace Microsoft.PythonTools.Repl {
                             );
                         } catch (Exception ex) when (!ex.IsCriticalException()) {
                             WriteError(Strings.ReplCannotReadFile.FormatUI(modeFile));
+                        }
+
+                        // Translate legacy backend names.
+                        switch (BackendName) {
+                            case "visualstudio_ipython_repl.IPythonBackend":
+                                BackendName = "ptvsd.repl.ipython.IPythonBackend";
+                                break;
+                            case "visualstudio_ipython_repl.IPythonBackendWithoutPyLab":
+                                BackendName = "ptvsd.repl.ipython.IPythonBackendWithoutPyLab";
+                                break;
                         }
                     } else {
                         BackendName = null;

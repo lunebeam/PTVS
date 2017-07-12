@@ -65,6 +65,7 @@ namespace ReplWindowUITests {
                 Keyboard.Type("import ");
 
                 using (var sh = interactive.WaitForSession<ICompletionSession>()) {
+                    Assert.IsNotNull(sh.Session.SelectedCompletionSet, "No selected completion set");
                     var names = sh.Session.SelectedCompletionSet.Completions.Select(c => c.DisplayText).ToList();
                     var nameset = new HashSet<string>(names);
 
@@ -77,6 +78,7 @@ namespace ReplWindowUITests {
         /// Type "raise Exception()", hit enter, raise Exception() should have
         /// appropriate syntax color highlighting.
         /// </summary>
+        [Ignore] // https://github.com/Microsoft/PTVS/issues/2762
         [TestMethod, Priority(1)]
         [HostType("VSTestHost"), TestCategory("Installed")]
         public virtual void SyntaxHighlightingRaiseException() {
@@ -90,7 +92,7 @@ namespace ReplWindowUITests {
                 interactive.WaitForText(
                     ">" + code,
                     "Traceback (most recent call last):",
-                    "  File \"<" + ((PythonReplWindowProxySettings)interactive.Settings).SourceFileName + ">\", line 1, in <module>",
+                    "  File \"<" + ((ReplWindowProxySettings)interactive.Settings).SourceFileName + ">\", line 1, in <module>",
                     "Exception",
                     ">"
                 );
@@ -99,10 +101,12 @@ namespace ReplWindowUITests {
                 var span = new SnapshotSpan(snapshot, new Span(0, snapshot.Length));
                 Assert.IsTrue(newClassifications.WaitOne(10000), "Timed out waiting for classification");
                 var classifications = interactive.Classifier.GetClassificationSpans(span);
+                Console.WriteLine("Classifications:");
                 foreach (var c in classifications) {
                     Console.WriteLine("{0} ({1})", c.Span.GetText(), c.ClassificationType.Classification);
                 }
 
+                Assert.AreEqual(3, classifications.Count());
                 Assert.AreEqual(classifications[0].ClassificationType.Classification, PredefinedClassificationTypeNames.Keyword);
                 Assert.AreEqual(classifications[1].ClassificationType.Classification, PredefinedClassificationTypeNames.Identifier);
                 Assert.AreEqual(classifications[2].ClassificationType.Classification, "Python grouping");
@@ -131,9 +135,13 @@ namespace ReplWindowUITests {
                 interactive.WaitForText(inputCode, autoIndent + b, ".");
                 const string c = "'c')";
                 interactive.Type(c);
-                interactive.WaitForText(inputCode, autoIndent + b, autoIndent + c, ".");
-                interactive.Backspace();    // remove prompt, we should be indented at same level as the print statement
-                interactive.WaitForText(inputCode, autoIndent + b, autoIndent + c);
+                interactive.WaitForText(
+                    inputCode,
+                    autoIndent + b,
+                    autoIndent + c,
+                    Settings.Version.Configuration.Version.Major == 2 ? "('a', 'b', 'c')" : "a b c",
+                    ">"
+                );
             }
         }
 
@@ -154,10 +162,9 @@ namespace ReplWindowUITests {
                 interactive.WaitForText(inputCode, autoIndent + b, ".");
                 const string c = "'c'))";
                 interactive.Type(c);
-                interactive.WaitForText(inputCode, autoIndent + b, autoIndent + c, ".");
+                interactive.WaitForText(inputCode, autoIndent + b, autoIndent + c, "('a', 'b', 'c')", ">");
                 interactive.SubmitCurrentText();
-
-                interactive.WaitForText(inputCode, autoIndent + b, autoIndent + c, ".", "('a', 'b', 'c')", ">");
+                interactive.WaitForText(inputCode, autoIndent + b, autoIndent + c, "('a', 'b', 'c')", ">", ">");
             }
         }
 
@@ -166,60 +173,35 @@ namespace ReplWindowUITests {
         public virtual void InlineImage() {
             using (var interactive = Prepare()) {
                 interactive.SubmitCode(@"import sys
-repl = sys.modules['visualstudio_py_repl'].BACKEND
+repl = sys.modules['ptvsd.repl'].BACKEND
 repl is not None");
-                interactive.WaitForTextEnd(">repl is not None", "True", ">");
+                interactive.WaitForTextEnd(
+                    ">import sys",
+                    ">repl = sys.modules['ptvsd.repl'].BACKEND",
+                    ">repl is not None",
+                    "True",
+                    ">"
+                );
 
                 Thread.Sleep(500);
                 interactive.ClearScreen();
                 interactive.WaitForText(">");
 
+                // load a 600 x 600 at 96dpi image
                 string loadImage = string.Format(
                     "repl.send_image(\"{0}\")",
                     TestData.GetPath(@"TestData\TestImage.png").Replace("\\", "\\\\")
                 );
                 interactive.SubmitCode(loadImage);
-                interactive.WaitForText(">" + loadImage, "", "", ">");
+                interactive.WaitForText(">" + loadImage, ">");
 
                 // check that we got a tag inserted
                 var tags = WaitForTags(interactive);
                 Assert.AreEqual(1, tags.Length);
 
                 var size = tags[0].Tag.Adornment.RenderSize;
-
-                // now add some more code to cause the image to minimize
-                const string nopCode = "x = 2";
-                interactive.SubmitCode(nopCode);
-                interactive.WaitForText(">" + loadImage, "", "", ">" + nopCode, ">");
-
-                // let image minimize...
-                Thread.Sleep(200);
-                for (int i = 0; i < 10; i++) {
-                    tags = WaitForTags(interactive);
-                    Assert.AreEqual(1, tags.Length);
-
-                    var sizeTmp = tags[0].Tag.Adornment.RenderSize;
-                    if (sizeTmp.Height < size.Height && sizeTmp.Width < size.Width) {
-                        break;
-                    }
-                    Thread.Sleep(200);
-                }
-
-                // make sure it's minimized
-                var size2 = tags[0].Tag.Adornment.RenderSize;
-                Assert.IsTrue(size2.Height < size.Height);
-                Assert.IsTrue(size2.Width < size.Width);
-                /*
-                Point screenPoint = new Point(0, 0);
-                ((UIElement)textview).Dispatcher.Invoke((Action)(() => {
-                    screenPoint = tags[0].Tag.Adornment.PointToScreen(new Point(10, 10));
-                }));
-                Mouse.MoveTo(screenPoint);
-
-                Mouse.Click(MouseButton.Left);
-
-                Keyboard.PressAndRelease(Key.OemPlus, Key.LeftCtrl);*/
-                //Keyboard.Type(Key.Escape);
+                Assert.IsTrue(size.Width > 0 && size.Width <= 600);
+                Assert.IsTrue(size.Height > 0 && size.Height <= 600);
             }
         }
 
@@ -227,13 +209,15 @@ repl is not None");
         [HostType("VSTestHost"), TestCategory("Installed")]
         public virtual void ImportCompletions() {
             using (var interactive = Prepare()) {
-                if (((PythonReplWindowProxySettings)interactive.Settings).Version.IsIronPython) {
+                if (((ReplWindowProxySettings)interactive.Settings).Version.IsIronPython) {
                     interactive.SubmitCode("import clr");
+                    interactive.WaitForText(">import clr", ">");
                 }
 
                 Keyboard.Type("import ");
                 List<string> names;
                 using (var sh = interactive.WaitForSession<ICompletionSession>()) {
+                    Assert.IsNotNull(sh.Session.SelectedCompletionSet, "No selected completion set");
                     names = sh.Session.SelectedCompletionSet.Completions.Select(c => c.DisplayText).ToList();
                 }
 
@@ -245,6 +229,7 @@ repl is not None");
 
                 Keyboard.Type("os.");
                 using (var sh = interactive.WaitForSession<ICompletionSession>()) {
+                    Assert.IsNotNull(sh.Session.SelectedCompletionSet, "No selected completion set");
                     names = sh.Session.SelectedCompletionSet.Completions.Select(c => c.DisplayText).ToList();
                     AssertUtil.ContainsExactly(names, "path");
                 }
@@ -252,6 +237,7 @@ repl is not None");
             }
         }
 
+        [Ignore] // https://github.com/Microsoft/PTVS/issues/2682
         [TestMethod, Priority(1)]
         [HostType("VSTestHost"), TestCategory("Installed")]
         public virtual void Comments() {
@@ -279,7 +265,7 @@ repl is not None");
             // where we will re-enable them when they work properly.
             using (var interactive = Prepare()) {
                 int spaces = interactive.TextView.Options.GetOptionValue(DefaultOptions.IndentSizeOptionId);
-                int textWidth = interactive.Settings.PrimaryPrompt.Length + 3;
+                int textWidth = interactive.CurrentPrimaryPrompt.Length + 3;
 
                 int totalChars = spaces;
                 while (totalChars < textWidth) {
@@ -291,6 +277,21 @@ repl is not None");
             }
         }
 
+        [TestMethod, Priority(1)]
+        [HostType("VSTestHost"), TestCategory("Installed")]
+        public virtual void TestPydocRedirected() {
+            // We run this test on multiple interpreters because pydoc
+            // output redirection has changed on Python 3.x
+            // https://github.com/Microsoft/PTVS/issues/2531
+            using (var interactive = Prepare()) {
+                interactive.SubmitCode("help(exit)");
+                interactive.WaitForText(
+                    ">help(exit)",
+                    Settings.ExitHelp,
+                    ">"
+                );
+            }
+        }
 
         #region Helper Methods
 
