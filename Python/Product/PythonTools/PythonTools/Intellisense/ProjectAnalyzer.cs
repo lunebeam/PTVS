@@ -1064,6 +1064,11 @@ namespace Microsoft.PythonTools.Intellisense {
             }
         }
 
+        internal static Task<NumericFormat[]> GetSuggestedNumericFormatsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
+            // TODO
+            return Task.FromResult(new NumericFormat[] { NumericFormat.Binary, NumericFormat.Hex });
+        }
+
         internal static async Task<MissingImportAnalysis> GetMissingImportsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
             ReverseExpressionParser parser = new ReverseExpressionParser(snapshot, snapshot.TextBuffer, span);
             var loc = span.GetSpan(snapshot.Version);

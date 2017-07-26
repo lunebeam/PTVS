@@ -86,12 +86,18 @@ namespace Microsoft.PythonTools.Intellisense {
                 TrackingFidelityMode.Forward
             );
             var imports = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetMissingImportsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
-
-            if (imports == MissingImportAnalysis.Empty) {
+            var numericFormats = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetSuggestedNumericFormatsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
+            if (imports == MissingImportAnalysis.Empty && numericFormats.Length == 0) {
                 return false;
             }
 
             var suggestions = new List<SuggestedActionSet>();
+            if (numericFormats.Length > 0) {
+                suggestions.Add(new SuggestedActionSet(
+                    numericFormats.Select(fmt => new PythonSuggestedConvertNumericLiteralAction(this, textBuffer, textBuffer.CurrentSnapshot, span, fmt))
+                ));
+            }
+
             var availableImports = await imports.GetAvailableImportsAsync(cancellationToken);
 
             suggestions.Add(new SuggestedActionSet(
