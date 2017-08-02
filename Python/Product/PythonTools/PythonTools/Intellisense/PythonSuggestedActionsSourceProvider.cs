@@ -19,7 +19,9 @@ using System.ComponentModel.Composition;
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudio.Utilities;
 
 namespace Microsoft.PythonTools.Intellisense {
@@ -32,6 +34,12 @@ namespace Microsoft.PythonTools.Intellisense {
         [Import(typeof(SVsServiceProvider))]
         internal IServiceProvider _provider = null;
 
+        [Import]
+        private IClassifierAggregatorService _classifierFactory = null;
+
+        [Import]
+        private ITextStructureNavigatorSelectorService _navigatorService = null;
+
         public ISuggestedActionsSource CreateSuggestedActionsSource(
             ITextView textView,
             ITextBuffer textBuffer
@@ -39,7 +47,13 @@ namespace Microsoft.PythonTools.Intellisense {
             if (textView == null && textBuffer == null) {
                 return null;
             }
-            return new PythonSuggestedActionsSource(_provider, textView, textBuffer);
+            return new PythonSuggestedActionsSource(
+                _provider,
+                textView,
+                textBuffer,
+                _classifierFactory.GetClassifier(textBuffer),
+                _navigatorService.GetTextStructureNavigator(textBuffer)
+            );
         }
     }
 }

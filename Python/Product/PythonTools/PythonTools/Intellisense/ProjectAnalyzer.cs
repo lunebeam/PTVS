@@ -42,6 +42,7 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudioTools;
 using MSBuild = Microsoft.Build.Evaluation;
+using System.Numerics;
 
 namespace Microsoft.PythonTools.Intellisense {
     using AP = AnalysisProtocol;
@@ -1064,9 +1065,22 @@ namespace Microsoft.PythonTools.Intellisense {
             }
         }
 
-        internal static Task<NumericFormat[]> GetSuggestedNumericFormatsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
-            // TODO
-            return Task.FromResult(new NumericFormat[] { NumericFormat.Binary, NumericFormat.Hex });
+        internal static async Task<AP.NumericConversion[]> GetSuggestedNumericFormatsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
+            var entryService = serviceProvider.GetEntryService();
+            AnalysisEntry entry;
+            if (entryService == null || !entryService.TryGetAnalysisEntry(view, snapshot.TextBuffer, out entry)) {
+                return new AP.NumericConversion[0];
+            }
+
+            var point = span.GetStartPoint(snapshot);
+            var location = new SourceLocation(
+                point.Position,
+                point.Position - point.GetContainingLine().Start + 1,
+                point.GetContainingLine().LineNumber
+            );
+
+            var response = await entry.Analyzer.GetNumericConversions(entry, snapshot.TextBuffer, span.GetText(snapshot), location);
+            return response?.conversions ?? new AP.NumericConversion[0];
         }
 
         internal static async Task<MissingImportAnalysis> GetMissingImportsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
@@ -2054,6 +2068,21 @@ namespace Microsoft.PythonTools.Intellisense {
                 );
             }
             return null;
+        }
+
+        internal async Task<AP.NumericConversionsResponse> GetNumericConversions(AnalysisEntry entry, ITextBuffer textBuffer, string expr, SourceLocation location) {
+            var bufferId = entry.GetBufferId(textBuffer);
+
+            return await SendRequestAsync(
+                new AP.NumericConversionsRequest() {
+                    fileId = entry.FileId,
+                    bufferId = bufferId,
+                    column = location.Column,
+                    index = location.Index,
+                    line = location.Line,
+                    expr = expr
+                }
+            ).ConfigureAwait(false);
         }
 
         internal async Task<AP.AddImportResponse> AddImportAsync(AnalysisEntry entry, ITextBuffer textBuffer, string fromModule, string name, string newLine) {

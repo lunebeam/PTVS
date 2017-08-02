@@ -20,6 +20,7 @@ using System.ComponentModel.Composition.Hosting;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -179,6 +180,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 case AP.OutlingRegionsRequest.Command: response = GetOutliningRegions((AP.OutlingRegionsRequest)request); break;
                 case AP.NavigationRequest.Command: response = GetNavigations((AP.NavigationRequest)request); break;
                 case AP.FileUpdateRequest.Command: response = UpdateContent((AP.FileUpdateRequest)request); break;
+                case AP.NumericConversionsRequest.Command: response = GetNumericConversions((AP.NumericConversionsRequest)request); break;
                 case AP.UnresolvedImportsRequest.Command: response = GetUnresolvedImports((AP.UnresolvedImportsRequest)request); break;
                 case AP.AddImportRequest.Command: response = AddImportRequest((AP.AddImportRequest)request); break;
                 case AP.IsMissingImportRequest.Command: response = IsMissingImport((AP.IsMissingImportRequest)request); break;
@@ -938,6 +940,45 @@ namespace Microsoft.PythonTools.Intellisense {
             return exprStmt != null &&
                     (constExpr = exprStmt.Expression as ConstantExpression) != null &&
                     (constExpr.Value is string || constExpr.Value is AsciiString);
+        }
+
+        class NumericWalker : PythonWalker {
+            public ConstantExpression expr;
+
+            public override bool Walk(ExpressionStatement statement) {
+                ConstantExpression constExpr = statement.Expression as ConstantExpression;
+                if (constExpr != null) {
+                    if (constExpr.Value is int || constExpr.Value is BigInteger) {
+                        expr = constExpr;
+                    }
+                }
+                return base.Walk(statement);
+            }
+        }
+
+        private Response GetNumericConversions(AP.NumericConversionsRequest request) {
+            var parser = Parser.CreateParser(new StringReader(request.expr), Project.LanguageVersion);
+
+            var stmt = parser.ParseSingleStatement();
+            var walker = new NumericWalker();
+            stmt.Walk(walker);
+
+            // TODO
+            // Relevant code: ReadOctalNumber, ReadHexNumber, ReadBinaryNumber, ReadNumber
+            int lastVersion = 0;
+            int start = request.index;
+            int end = start + request.expr.Length;
+            var response = new AP.NumericConversionsResponse();
+            if (walker.expr != null) {
+                response.conversions = new AP.NumericConversion[] {
+                    new AP.NumericConversion() { format = AP.NumericFormat.binary, version = lastVersion, changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(walker.expr.GetBinaryExpr(Project.LanguageVersion), start, end) }},
+                    new AP.NumericConversion() { format = AP.NumericFormat.@decimal, version = lastVersion, changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(walker.expr.GetDecimalExpr(Project.LanguageVersion), start, end) }},
+                    new AP.NumericConversion() { format = AP.NumericFormat.hex, version = lastVersion, changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(walker.expr.GetHexExpr(Project.LanguageVersion), start, end) }},
+                    new AP.NumericConversion() { format = AP.NumericFormat.octal, version = lastVersion, changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(walker.expr.GetOctalExpr(Project.LanguageVersion), start, end) }}
+                };
+            }
+
+            return response;
         }
 
         private Response GetUnresolvedImports(AP.UnresolvedImportsRequest request) {

@@ -360,6 +360,33 @@ namespace Microsoft.PythonTools.Intellisense {
             changes
         }
 
+        public enum NumericFormat {
+            @decimal,
+            binary,
+            hex,
+            octal,
+        }
+
+        public sealed class NumericConversion {
+            public ChangeInfo[] changes;
+            public int version;
+            public NumericFormat format;
+        }
+
+        public sealed class NumericConversionsRequest : Request<NumericConversionsResponse> {
+            public const string Command = "numericConversions";
+
+            public int fileId, bufferId;
+            public string expr;
+            public int line, column, index;
+
+            public override string command => Command;
+        }
+
+        public sealed class NumericConversionsResponse : Response {
+            public NumericConversion[] conversions;
+        }
+
         public sealed class AddImportRequest : Request<AddImportResponse> {
             public const string Command = "addImport";
 
