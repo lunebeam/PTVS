@@ -281,6 +281,7 @@
     <Compile Include="PythonTools\Intellisense\FileCookie.cs" />
     <Compile Include="PythonTools\Intellisense\IIntellisenseCookie.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisEntry.cs" />
+    <Compile Include="PythonTools\Intellisense\PythonSuggestedConvertNumericLiteralAction.cs" />
     <Compile Include="PythonTools\Intellisense\QuickInfo.cs" />
     <Compile Include="PythonTools\Intellisense\VersionedResponse.cs" />
     <Compile Include="PythonTools\Editor\BraceCompletion\BraceCompletionContext.cs" />

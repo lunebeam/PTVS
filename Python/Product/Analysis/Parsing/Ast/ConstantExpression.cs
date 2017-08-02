@@ -105,6 +105,22 @@ namespace Microsoft.PythonTools.Parsing.Ast {
             res.Append("'");
         }
 
+        public string GetDecimalExpr(PythonLanguageVersion version) {
+            return GetConstantRepr(version);
+        }
+
+        public string GetOctalExpr(PythonLanguageVersion version) {
+            return "4567";
+        }
+
+        public string GetHexExpr(PythonLanguageVersion version) {
+            return "890ABC";
+        }
+
+        public string GetBinaryExpr(PythonLanguageVersion version) {
+            return "0b011100";
+        }
+
         public string GetConstantRepr(PythonLanguageVersion version, bool escape8bitStrings = false) {
             if (_value == null) {
                 return "None";

@@ -21,8 +21,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Editor.Core;
 using Microsoft.VisualStudio.Language.Intellisense;
+using Microsoft.VisualStudio.Language.StandardClassification;
+using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
+using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudioTools;
 
 namespace Microsoft.PythonTools.Intellisense {
@@ -30,6 +34,8 @@ namespace Microsoft.PythonTools.Intellisense {
         internal readonly IServiceProvider _provider;
         internal readonly ITextView _view;
         private readonly ITextBuffer _textBuffer;
+        private readonly IClassifier _classifier;
+        private readonly ITextStructureNavigator _textNavigator;
 
         private readonly object _currentLock = new object();
         private IEnumerable<SuggestedActionSet> _current;
@@ -41,13 +47,16 @@ namespace Microsoft.PythonTools.Intellisense {
         public PythonSuggestedActionsSource(
             IServiceProvider provider,
             ITextView textView,
-            ITextBuffer textBuffer
-        ) {
+            ITextBuffer textBuffer,
+            IClassifier classifier,
+            ITextStructureNavigator textNavigator) {
             _provider = provider;
             _view = textView;
             _textBuffer = textBuffer;
             _textBuffer.RegisterForNewAnalysis(OnNewAnalysisEntry);
             _uiThread = provider.GetUIThread();
+            _classifier = classifier;
+            _textNavigator = textNavigator;
         }
 
         private void OnNewAnalysisEntry(AnalysisEntry obj) {
@@ -87,11 +96,21 @@ namespace Microsoft.PythonTools.Intellisense {
             );
             var imports = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetMissingImportsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
 
-            if (imports == MissingImportAnalysis.Empty) {
+            var numericSpans = GetNumericSpans(range).ToArray();
+            if (imports == MissingImportAnalysis.Empty && numericSpans.Length == 0) {
                 return false;
             }
 
             var suggestions = new List<SuggestedActionSet>();
+            if (numericSpans.Length > 0) {
+                var trackingSpan = textBuffer.CurrentSnapshot.CreateTrackingSpan(numericSpans.First(), SpanTrackingMode.EdgeInclusive);
+                var conversions = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetSuggestedNumericFormatsAsync(_provider, _view, textBuffer.CurrentSnapshot, trackingSpan));
+                suggestions.Add(new SuggestedActionSet("Convert Numeric",
+                    conversions.Select(conv => new PythonSuggestedConvertNumericLiteralAction(this, textBuffer, conv)),
+                    title: "Convert Numeric Title"
+                ));
+            }
+
             var availableImports = await imports.GetAvailableImportsAsync(cancellationToken);
 
             suggestions.Add(new SuggestedActionSet(
@@ -113,6 +132,14 @@ namespace Microsoft.PythonTools.Intellisense {
             }
 
             return true;
+        }
+
+        private IEnumerable<SnapshotSpan> GetNumericSpans(SnapshotSpan span) {
+            foreach (var token in _classifier.GetClassificationSpans(span)) {
+                if (token.ClassificationType.IsOfType(PredefinedClassificationTypeNames.Number)) {
+                    yield return token.Span;
+                }
+            }
         }
 
         public bool TryGetTelemetryId(out Guid telemetryId) {
