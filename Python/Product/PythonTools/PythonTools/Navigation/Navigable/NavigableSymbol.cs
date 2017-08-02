@@ -16,44 +16,35 @@
 
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
-using Microsoft.VisualStudio;
+using System.Windows;
+using Microsoft.PythonTools.Infrastructure;
+using Microsoft.PythonTools.Intellisense;
 using Microsoft.VisualStudio.Language.Intellisense;
-using Microsoft.VisualStudio.OLE.Interop;
-using Microsoft.VisualStudio.Shell;
-using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
-using Microsoft.PythonTools;
 
-namespace Microsoft.PythonTools.Navigable {
+namespace Microsoft.PythonTools.Navigation.Navigable {
     class NavigableSymbol : INavigableSymbol {
-        private readonly static IOleCommandTarget _shellCommandDispatcher =
-            PythonToolsPackage.GetGlobalService(typeof(SUIHostCommandDispatcher)) as IOleCommandTarget;
+        private readonly IServiceProvider _serviceProvider;
 
-        public NavigableSymbol(SnapshotSpan span) {
+        public NavigableSymbol(IServiceProvider serviceProvider, AnalysisLocation location, SnapshotSpan span) {
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            Location = location ?? throw new ArgumentNullException(nameof(location));
             SymbolSpan = span;
         }
 
         public SnapshotSpan SymbolSpan { get; }
 
+        internal AnalysisLocation Location { get; }
+
+        // FYI: This is for future extensibility, it's currently ignored (in 15.3)
         public IEnumerable<INavigableRelationship> Relationships =>
             new List<INavigableRelationship>() { PredefinedNavigableRelationships.Definition };
 
         public void Navigate(INavigableRelationship relationship) {
-            Debug.Assert(_shellCommandDispatcher != null);
-
-            if (_shellCommandDispatcher != null) {
-                Guid cmdGroup = VSConstants.GUID_VSStandardCommandSet97;
-                uint cmdId = (uint)VSConstants.VSStd97CmdID.GotoDefn;
-
-                ErrorHandler.CallWithCOMConvention(
-                () => {
-                    _shellCommandDispatcher.Exec(
-                        ref cmdGroup, cmdId,
-                        (uint)OLECMDEXECOPT.OLECMDEXECOPT_DODEFAULT,
-                        System.IntPtr.Zero,
-                        System.IntPtr.Zero);
-                });
+            try {
+                Location.GotoSource(_serviceProvider);
+            } catch (Exception ex) when (!ex.IsCriticalException()) {
+                MessageBox.Show(Strings.CannotGoToDefn_Name.FormatUI(SymbolSpan.GetText()), Strings.ProductTitle);
             }
         }
     }
