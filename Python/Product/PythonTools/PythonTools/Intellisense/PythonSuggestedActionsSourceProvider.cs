@@ -40,6 +40,9 @@ namespace Microsoft.PythonTools.Intellisense {
         [Import]
         private ITextStructureNavigatorSelectorService _navigatorService = null;
 
+        [Import]
+        private Lazy<PreviewChangesService> _changePreviewFactory = null;
+
         public ISuggestedActionsSource CreateSuggestedActionsSource(
             ITextView textView,
             ITextBuffer textBuffer
@@ -52,7 +55,8 @@ namespace Microsoft.PythonTools.Intellisense {
                 textView,
                 textBuffer,
                 _classifierFactory.GetClassifier(textBuffer),
-                _navigatorService.GetTextStructureNavigator(textBuffer)
+                _navigatorService.GetTextStructureNavigator(textBuffer),
+                _changePreviewFactory
             );
         }
     }

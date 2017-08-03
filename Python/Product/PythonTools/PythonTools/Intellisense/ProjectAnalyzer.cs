@@ -42,7 +42,6 @@ using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Editor.OptionsExtensionMethods;
 using Microsoft.VisualStudioTools;
 using MSBuild = Microsoft.Build.Evaluation;
-using System.Numerics;
 
 namespace Microsoft.PythonTools.Intellisense {
     using AP = AnalysisProtocol;
@@ -1065,22 +1064,16 @@ namespace Microsoft.PythonTools.Intellisense {
             }
         }
 
-        internal static async Task<AP.NumericConversion[]> GetSuggestedNumericFormatsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
+        internal static async Task<VersionedResponse<AP.NumericConversionsResponse>> GetSuggestedNumericFormatsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
             var entryService = serviceProvider.GetEntryService();
             AnalysisEntry entry;
             if (entryService == null || !entryService.TryGetAnalysisEntry(view, snapshot.TextBuffer, out entry)) {
-                return new AP.NumericConversion[0];
+                return null;
             }
 
-            var point = span.GetStartPoint(snapshot);
-            var location = new SourceLocation(
-                point.Position,
-                point.Position - point.GetContainingLine().Start + 1,
-                point.GetContainingLine().LineNumber
-            );
+            var location = TranslateIndex(span.GetStartPoint(snapshot).Position, snapshot, entry);
 
-            var response = await entry.Analyzer.GetNumericConversions(entry, snapshot.TextBuffer, span.GetText(snapshot), location);
-            return response?.conversions ?? new AP.NumericConversion[0];
+            return await entry.Analyzer.GetNumericConversions(entry, snapshot.TextBuffer, span.GetText(snapshot), location);
         }
 
         internal static async Task<MissingImportAnalysis> GetMissingImportsAsync(IServiceProvider serviceProvider, ITextView view, ITextSnapshot snapshot, ITrackingSpan span) {
@@ -2070,10 +2063,12 @@ namespace Microsoft.PythonTools.Intellisense {
             return null;
         }
 
-        internal async Task<AP.NumericConversionsResponse> GetNumericConversions(AnalysisEntry entry, ITextBuffer textBuffer, string expr, SourceLocation location) {
+        internal async Task<VersionedResponse<AP.NumericConversionsResponse>> GetNumericConversions(AnalysisEntry entry, ITextBuffer textBuffer, string expr, SourceLocation location) {
             var bufferId = entry.GetBufferId(textBuffer);
+            await entry.EnsureCodeSyncedAsync(textBuffer);
+            var lastAnalyzed = entry.GetAnalysisVersion(textBuffer);
 
-            return await SendRequestAsync(
+            var res = await SendRequestAsync(
                 new AP.NumericConversionsRequest() {
                     fileId = entry.FileId,
                     bufferId = bufferId,
@@ -2083,6 +2078,15 @@ namespace Microsoft.PythonTools.Intellisense {
                     expr = expr
                 }
             ).ConfigureAwait(false);
+
+            if (res != null) {
+                return VersionedResponse(
+                    res,
+                    textBuffer,
+                    lastAnalyzed
+                );
+            }
+            return null;
         }
 
         internal async Task<AP.AddImportResponse> AddImportAsync(AnalysisEntry entry, ITextBuffer textBuffer, string fromModule, string name, string newLine) {

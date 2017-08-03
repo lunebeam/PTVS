@@ -31,12 +31,16 @@ namespace Microsoft.PythonTools.Intellisense {
         private readonly PythonSuggestedActionsSource _source;
         private readonly ITextBuffer _buffer;
         private readonly AP.NumericConversion _conversion;
+        private readonly Lazy<PreviewChangesService> _changePreviewFactory;
+        private readonly LocationTracker _tracker;
 
         private static readonly Guid _telemetryId = new Guid("{AA1F684A-BED7-42C1-ADE5-12B9629DCE9A}");
-        public PythonSuggestedConvertNumericLiteralAction(PythonSuggestedActionsSource source, ITextBuffer buffer, AP.NumericConversion conversion) {
+        public PythonSuggestedConvertNumericLiteralAction(PythonSuggestedActionsSource source, ITextBuffer buffer, AP.NumericConversion conversion, Lazy<PreviewChangesService> changePreviewFactory, LocationTracker tracker) {
             _source = source;
             _buffer = buffer;
             _conversion = conversion;
+            _changePreviewFactory = changePreviewFactory;
+            _tracker = tracker;
         }
 
         public IEnumerable<SuggestedActionSet> ActionSets {
@@ -55,7 +59,17 @@ namespace Microsoft.PythonTools.Intellisense {
 
         public string DisplayText {
             get {
-                return _conversion.changes.First().newText;
+                switch (_conversion.format) {
+                    case AP.NumericFormat.@decimal:
+                        return Strings.ConvertToDecimal;
+                    case AP.NumericFormat.hex:
+                        return Strings.ConvertToHex;
+                    case AP.NumericFormat.binary:
+                        return Strings.ConvertToBinary;
+                    case AP.NumericFormat.octal:
+                        return Strings.ConvertToOctal;
+                }
+                return string.Empty;
             }
         }
 
@@ -91,11 +105,29 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         public Task<object> GetPreviewAsync(CancellationToken cancellationToken) {
-            return Task.FromResult<object>(null);
+            var entryService = _source._provider.GetEntryService();
+            AnalysisEntry entry;
+            if (entryService == null || !entryService.TryGetAnalysisEntry(_source._view, _buffer, out entry)) {
+                return null;
+            }
+
+            var changes = _conversion.changes;
+            var originalBuffer = _source._view.TextBuffer;
+            if (changes == null || _tracker == null || originalBuffer == null) {
+                return null;
+            }
+
+            return Task.FromResult(_changePreviewFactory.Value.CreateDiffView(
+                changes,
+                _tracker,
+                originalBuffer
+            ));
+
+            //return Task.FromResult<object>(null);
         }
 
         public bool HasPreview {
-            get { return false; }
+            get { return true; }
         }
 
         public void Invoke(CancellationToken cancellationToken) {

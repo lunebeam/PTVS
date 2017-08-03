@@ -2098,4 +2098,16 @@ Expand selection to the full expression?</value>
   <data name="RemoveReplPrompts" xml:space="preserve">
     <value>Remove Interactive Prompts</value>
   </data>
+  <data name="ConvertToBinary" xml:space="preserve">
+    <value>Convert to binary</value>
+  </data>
+  <data name="ConvertToDecimal" xml:space="preserve">
+    <value>Convert to decimal</value>
+  </data>
+  <data name="ConvertToHex" xml:space="preserve">
+    <value>Convert to hex</value>
+  </data>
+  <data name="ConvertToOctal" xml:space="preserve">
+    <value>Convert to octal</value>
+  </data>
 </root>

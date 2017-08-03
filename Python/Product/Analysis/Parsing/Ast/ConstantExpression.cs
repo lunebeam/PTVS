@@ -110,15 +110,49 @@ namespace Microsoft.PythonTools.Parsing.Ast {
         }
 
         public string GetOctalExpr(PythonLanguageVersion version) {
-            return "4567";
+            if (_value is int) {
+                return "0o" + Convert.ToString((int)_value, 8);
+            } else if (_value is BigInteger) {
+                var b = (BigInteger)_value;
+
+                StringBuilder s = new StringBuilder();
+                do {
+                    var val = b & 7;
+                    b = b >> 3;
+                    var segment = Convert.ToString((int)val, 8);
+                    s.Insert(0, segment);
+                } while (b != BigInteger.Zero);
+
+                return "0o" + s.ToString();
+            }
+            return null;
         }
 
         public string GetHexExpr(PythonLanguageVersion version) {
-            return "890ABC";
+            if (_value is int) {
+                return "0x" + ((int)_value).ToString("X");
+            } else if (_value is BigInteger) {
+                return "0x" + ((BigInteger)_value).ToString("X");
+            }
+            return null;
         }
 
         public string GetBinaryExpr(PythonLanguageVersion version) {
-            return "0b011100";
+            if (_value is int) {
+                return "0b" + Convert.ToString((int)_value, 2);
+            } else if (_value is BigInteger) {
+                var b = (BigInteger)_value;
+
+                StringBuilder s = new StringBuilder();
+                var bytes = b.ToByteArray();
+                for (int i = bytes.Length - 1; i >= 0; i--) {
+                    var segment = Convert.ToString(bytes[i], 2);
+                    s.Append('0', 8 - segment.Length);
+                    s.Append(segment);
+                }
+                return "0b" + s.ToString().TrimStart('0');
+            }
+            return null;
         }
 
         public string GetConstantRepr(PythonLanguageVersion version, bool escape8bitStrings = false) {

@@ -36,6 +36,7 @@ namespace Microsoft.PythonTools.Intellisense {
         private readonly ITextBuffer _textBuffer;
         private readonly IClassifier _classifier;
         private readonly ITextStructureNavigator _textNavigator;
+        private Lazy<PreviewChangesService> _changePreviewFactory;
 
         private readonly object _currentLock = new object();
         private IEnumerable<SuggestedActionSet> _current;
@@ -49,7 +50,8 @@ namespace Microsoft.PythonTools.Intellisense {
             ITextView textView,
             ITextBuffer textBuffer,
             IClassifier classifier,
-            ITextStructureNavigator textNavigator) {
+            ITextStructureNavigator textNavigator,
+            Lazy<PreviewChangesService> changePreviewFactory) {
             _provider = provider;
             _view = textView;
             _textBuffer = textBuffer;
@@ -57,6 +59,7 @@ namespace Microsoft.PythonTools.Intellisense {
             _uiThread = provider.GetUIThread();
             _classifier = classifier;
             _textNavigator = textNavigator;
+            _changePreviewFactory = changePreviewFactory;
         }
 
         private void OnNewAnalysisEntry(AnalysisEntry obj) {
@@ -105,10 +108,12 @@ namespace Microsoft.PythonTools.Intellisense {
             if (numericSpans.Length > 0) {
                 var trackingSpan = textBuffer.CurrentSnapshot.CreateTrackingSpan(numericSpans.First(), SpanTrackingMode.EdgeInclusive);
                 var conversions = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetSuggestedNumericFormatsAsync(_provider, _view, textBuffer.CurrentSnapshot, trackingSpan));
-                suggestions.Add(new SuggestedActionSet("Convert Numeric",
-                    conversions.Select(conv => new PythonSuggestedConvertNumericLiteralAction(this, textBuffer, conv)),
-                    title: "Convert Numeric Title"
-                ));
+                if (conversions != null) {
+                    suggestions.Add(new SuggestedActionSet("Convert Numeric",
+                        conversions.Data.conversions.Select(conv => new PythonSuggestedConvertNumericLiteralAction(this, textBuffer, conv, _changePreviewFactory, conversions.GetTracker(conv.version))),
+                        title: "Convert Numeric Title"
+                    ));
+                }
             }
 
             var availableImports = await imports.GetAvailableImportsAsync(cancellationToken);

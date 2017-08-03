@@ -901,6 +901,42 @@ namespace Microsoft.PythonTools {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Convert to binary.
+        /// </summary>
+        public static string ConvertToBinary {
+            get {
+                return ResourceManager.GetString("ConvertToBinary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Convert to decimal.
+        /// </summary>
+        public static string ConvertToDecimal {
+            get {
+                return ResourceManager.GetString("ConvertToDecimal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Convert to hex.
+        /// </summary>
+        public static string ConvertToHex {
+            get {
+                return ResourceManager.GetString("ConvertToHex", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Convert to octal.
+        /// </summary>
+        public static string ConvertToOctal {
+            get {
+                return ResourceManager.GetString("ConvertToOctal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to your current environment.
         /// </summary>
         public static string CurrentInterpreterDescription {
@@ -4472,11 +4508,11 @@ namespace Microsoft.PythonTools {
         ///#
         ///# Currently, supported options are:
         ///#   standard
-        ///#   visualstudio_ipython_repl.IPythonBackend
-        ///#   visualstudio_ipython_repl.IPythonBackendWithoutPyLab
+        ///#   ptvsd.repl.ipython.IPythonBackend
+        ///#   ptvsd.repl.ipython.IPythonBackendWithoutPyLab
         ///#
         ///
-        ///visualstudio_ipython_repl.IPythonBackend.
+        ///ptvsd.repl.ipython.IPythonBackend.
         /// </summary>
         public static string ReplScriptPathIPythonModeTxtContents {
             get {
