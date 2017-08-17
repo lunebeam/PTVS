@@ -64,6 +64,8 @@ namespace Microsoft.PythonTools.Intellisense {
         private readonly CompositionContainer _container;
         internal int _analysisPending;
 
+        private bool _isDisposed;
+
         // Moniker strings allow the task provider to distinguish between
         // different sources of items for the same file.
         private const string ParserTaskMoniker = "Parser";
@@ -176,7 +178,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 case AP.SignaturesRequest.Command: response = GetSignatures((AP.SignaturesRequest)request); break;
                 case AP.QuickInfoRequest.Command: response = GetQuickInfo((AP.QuickInfoRequest)request); break;
                 case AP.AnalyzeExpressionRequest.Command: response = AnalyzeExpression((AP.AnalyzeExpressionRequest)request); break;
-                case AP.OutlingRegionsRequest.Command: response = GetOutliningRegions((AP.OutlingRegionsRequest)request); break;
+                case AP.OutliningRegionsRequest.Command: response = GetOutliningRegions((AP.OutliningRegionsRequest)request); break;
                 case AP.NavigationRequest.Command: response = GetNavigations((AP.NavigationRequest)request); break;
                 case AP.FileUpdateRequest.Command: response = UpdateContent((AP.FileUpdateRequest)request); break;
                 case AP.UnresolvedImportsRequest.Command: response = GetUnresolvedImports((AP.UnresolvedImportsRequest)request); break;
@@ -1073,7 +1075,7 @@ namespace Microsoft.PythonTools.Intellisense {
             }
         }
 
-        private Response GetOutliningRegions(AP.OutlingRegionsRequest request) {
+        private Response GetOutliningRegions(AP.OutliningRegionsRequest request) {
             AP.OutliningTag[] tags = Array.Empty<AP.OutliningTag>();
             var bufferVersion = GetBufferVersion(request.fileId, request.bufferId);
             if (bufferVersion != null && bufferVersion.Ast != null) {
@@ -2379,6 +2381,11 @@ namespace Microsoft.PythonTools.Intellisense {
         #region IDisposable Members
 
         public void Dispose() {
+            if (_isDisposed) {
+                return;
+            }
+
+            _isDisposed = true;
             _analysisQueue.AnalysisComplete -= AnalysisQueue_Complete;
             _analysisQueue.Dispose();
             if (_pyAnalyzer != null) {
