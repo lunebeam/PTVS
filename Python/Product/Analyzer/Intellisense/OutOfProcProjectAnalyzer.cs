@@ -969,48 +969,30 @@ namespace Microsoft.PythonTools.Intellisense {
             int end = start + request.expr.Length;
             var response = new AP.NumericConversionsResponse();
             if (walker.expr != null) {
-                var list = new List<AP.NumericConversion>();
-
-                var decVal = walker.expr.GetDecimalExpr(Project.LanguageVersion);
-                if (decVal != null && string.Compare(decVal, request.expr, StringComparison.OrdinalIgnoreCase) != 0) {
-                    list.Add(new AP.NumericConversion() {
-                        format = AP.NumericFormat.@decimal,
-                        version = lastVersion,
-                        changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(decVal, start, end) }
-                    });
-                }
-
-                var binVal = walker.expr.GetBinaryExpr(Project.LanguageVersion);
-                if (binVal != null && string.Compare(binVal, request.expr, StringComparison.OrdinalIgnoreCase) != 0) {
-                    list.Add(new AP.NumericConversion() {
-                        format = AP.NumericFormat.binary,
-                        version = lastVersion,
-                        changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(binVal, start, end) }
-                    });
-                }
-
-                var hexVal = walker.expr.GetHexExpr(Project.LanguageVersion);
-                if (hexVal != null && string.Compare(hexVal, request.expr, StringComparison.OrdinalIgnoreCase) != 0) {
-                    list.Add(new AP.NumericConversion() {
-                        format = AP.NumericFormat.hex,
-                        version = lastVersion,
-                        changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(hexVal, start, end) }
-                    });
-                }
-
-                var octVal = walker.expr.GetOctalExpr(Project.LanguageVersion);
-                if (octVal != null && string.Compare(octVal, request.expr, StringComparison.OrdinalIgnoreCase) != 0) {
-                    list.Add(new AP.NumericConversion() {
-                        format = AP.NumericFormat.octal,
-                        version = lastVersion,
-                        changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(octVal, start, end) }
-                    });
-                }
-
-                response.conversions = list.ToArray();
+                response.conversions = EnumerateNumericConversions(request, walker, lastVersion, start, end).ToArray();
             }
 
             return response;
+        }
+
+        private IEnumerable<AP.NumericConversion> EnumerateNumericConversions(AP.NumericConversionsRequest request, NumericWalker walker, int lastVersion, int start, int end) {
+            var formatters = new Dictionary<AP.NumericFormat, Func<ConstantExpression, string>>() {
+                    { AP.NumericFormat.@decimal,  (expr) => expr.GetDecimalExpr(Project.LanguageVersion)},
+                    { AP.NumericFormat.binary,  (expr) => expr.GetBinaryExpr(Project.LanguageVersion)},
+                    { AP.NumericFormat.hex,  (expr) => expr.GetHexExpr(Project.LanguageVersion)},
+                    { AP.NumericFormat.octal,  (expr) => expr.GetOctalExpr(Project.LanguageVersion)},
+                };
+
+            foreach (var f in formatters) {
+                var convertedExpr = f.Value(walker.expr);
+                if (convertedExpr != null && string.Compare(convertedExpr, request.expr, StringComparison.OrdinalIgnoreCase) != 0) {
+                    yield return new AP.NumericConversion() {
+                        format = f.Key,
+                        version = lastVersion,
+                        changes = new AP.ChangeInfo[] { AP.ChangeInfo.FromBounds(convertedExpr, start, end) }
+                    };
+                }
+            }
         }
 
         private Response GetUnresolvedImports(AP.UnresolvedImportsRequest request) {
