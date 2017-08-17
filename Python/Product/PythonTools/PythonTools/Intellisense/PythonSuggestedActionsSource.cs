@@ -21,13 +21,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Editor.Core;
 using Microsoft.VisualStudio.Language.Intellisense;
-using Microsoft.VisualStudio.Language.StandardClassification;
-using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
 using Microsoft.VisualStudio.Text.Editor;
 using Microsoft.VisualStudio.Text.Operations;
 using Microsoft.VisualStudioTools;
+using Microsoft.VisualStudio.Language.StandardClassification;
 
 namespace Microsoft.PythonTools.Intellisense {
     class PythonSuggestedActionsSource : ISuggestedActionsSource {
@@ -80,51 +79,21 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         public async Task<bool> HasSuggestedActionsAsync(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range, CancellationToken cancellationToken) {
-            var pos = _view.Caret.Position.BufferPosition;
-            if (pos.Position < pos.GetContainingLine().End.Position) {
-                pos += 1;
-            }
-            var targetPoint = _view.BufferGraph.MapDownToFirstMatch(pos, PointTrackingMode.Positive, EditorExtensions.IsPythonContent, PositionAffinity.Successor);
-            if (targetPoint == null) {
-                return false;
-            }
-            var textBuffer = targetPoint.Value.Snapshot.TextBuffer;
-            var lineStart = targetPoint.Value.GetContainingLine().Start;
-
-            var span = targetPoint.Value.Snapshot.CreateTrackingSpan(
-                lineStart,
-                targetPoint.Value.Position - lineStart.Position,
-                SpanTrackingMode.EdgePositive,
-                TrackingFidelityMode.Forward
-            );
-            var imports = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetMissingImportsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
-
-            var numericSpans = GetNumericSpans(range).ToArray();
-            if (imports == MissingImportAnalysis.Empty && numericSpans.Length == 0) {
-                return false;
-            }
-
             var suggestions = new List<SuggestedActionSet>();
-            if (numericSpans.Length > 0) {
-                var trackingSpan = textBuffer.CurrentSnapshot.CreateTrackingSpan(numericSpans.First(), SpanTrackingMode.EdgeInclusive);
-                var conversions = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetSuggestedNumericFormatsAsync(_provider, _view, textBuffer.CurrentSnapshot, trackingSpan));
-                if (conversions != null) {
-                    suggestions.Add(new SuggestedActionSet("Convert Numeric",
-                        conversions.Data.conversions.Select(conv => new PythonSuggestedConvertNumericLiteralAction(this, textBuffer, conv, _changePreviewFactory, conversions.GetTracker(conv.version))),
-                        title: "Convert Numeric Title"
-                    ));
+
+            var sources = new Func<SnapshotSpan, CancellationToken, Task<SuggestedActionSet>>[] {
+                GetMissingImports,
+                GetNumericConversions,
+            };
+
+            foreach (var source in sources) {
+                var imports = await source(range, cancellationToken);
+                if (imports != null) {
+                    suggestions.Add(imports);
                 }
+
+                cancellationToken.ThrowIfCancellationRequested();
             }
-
-            var availableImports = await imports.GetAvailableImportsAsync(cancellationToken);
-
-            suggestions.Add(new SuggestedActionSet(
-                availableImports.Select(s => new PythonSuggestedImportAction(this, textBuffer, s))
-                    .OrderBy(k => k)
-                    .Distinct()
-            ));
-
-            cancellationToken.ThrowIfCancellationRequested();
 
             if (!suggestions.SelectMany(s => s.Actions).Any()) {
                 return false;
@@ -139,17 +108,71 @@ namespace Microsoft.PythonTools.Intellisense {
             return true;
         }
 
-        private IEnumerable<SnapshotSpan> GetNumericSpans(SnapshotSpan span) {
-            foreach (var token in _classifier.GetClassificationSpans(span)) {
-                if (token.ClassificationType.IsOfType(PredefinedClassificationTypeNames.Number)) {
-                    yield return token.Span;
-                }
-            }
-        }
-
         public bool TryGetTelemetryId(out Guid telemetryId) {
             telemetryId = _telemetryId;
             return false;
+        }
+
+        private async Task<SuggestedActionSet> GetNumericConversions(SnapshotSpan range, CancellationToken cancellationToken) {
+            var textBuffer = range.Snapshot.TextBuffer;
+            var numericSpans = _classifier.GetClassificationSpans(range)
+                .Where(token => token.ClassificationType.IsOfType(PredefinedClassificationTypeNames.Number));
+            if (numericSpans.Any()) {
+                var trackingSpan = textBuffer.CurrentSnapshot.CreateTrackingSpan(
+                    numericSpans.First().Span,
+                    SpanTrackingMode.EdgeInclusive
+                );
+
+                var conversions = await _uiThread.InvokeTask(
+                    () => VsProjectAnalyzer.GetSuggestedNumericFormatsAsync(
+                        _provider,
+                        _view,
+                        textBuffer.CurrentSnapshot,
+                        trackingSpan)
+                );
+                if (conversions != null) {
+                    return new SuggestedActionSet(
+                        conversions.Data.conversions.Select(
+                            conv => new PythonSuggestedConvertNumericLiteralAction(this, textBuffer, conv, _changePreviewFactory, conversions.GetTracker(conv.version))
+                    ));
+                }
+            }
+
+            return null;
+        }
+
+        private async Task<SuggestedActionSet> GetMissingImports(SnapshotSpan range, CancellationToken cancellationToken) {
+            var pos = _view.Caret.Position.BufferPosition;
+            if (pos.Position < pos.GetContainingLine().End.Position) {
+                pos += 1;
+            }
+            var targetPoint = _view.BufferGraph.MapDownToFirstMatch(pos, PointTrackingMode.Positive, EditorExtensions.IsPythonContent, PositionAffinity.Successor);
+            if (targetPoint == null) {
+                return null;
+            }
+            var textBuffer = targetPoint.Value.Snapshot.TextBuffer;
+            var lineStart = targetPoint.Value.GetContainingLine().Start;
+
+            var span = targetPoint.Value.Snapshot.CreateTrackingSpan(
+                lineStart,
+                targetPoint.Value.Position - lineStart.Position,
+                SpanTrackingMode.EdgePositive,
+                TrackingFidelityMode.Forward
+            );
+
+            var suggestions = new List<SuggestedActionSet>();
+
+            var imports = await _uiThread.InvokeTask(() => VsProjectAnalyzer.GetMissingImportsAsync(_provider, _view, textBuffer.CurrentSnapshot, span));
+            if (imports == MissingImportAnalysis.Empty) {
+                return null;
+            }
+
+            var availableImports = await imports.GetAvailableImportsAsync(cancellationToken);
+            return new SuggestedActionSet(
+                availableImports.Select(s => new PythonSuggestedImportAction(this, textBuffer, s))
+                    .OrderBy(k => k)
+                    .Distinct()
+            );
         }
     }
 }
