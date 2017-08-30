@@ -38,6 +38,7 @@ namespace Microsoft.PythonTools {
     /// which it is applicable to.
     /// </summary>
     [Export(typeof(IClassifierProvider)), ContentType(PythonCoreConstants.ContentType)]
+    [Export(typeof(PythonClassifierProvider))]
     internal class PythonClassifierProvider : IClassifierProvider {
         private Dictionary<TokenCategory, IClassificationType> _categoryMap;
         private IClassificationType _comment;
@@ -92,7 +93,8 @@ namespace Microsoft.PythonTools {
                 _categoryMap = FillCategoryMap(_services.ClassificationTypeRegistryService);
             }
 
-            return _services.GetBufferInfo(buffer).GetOrCreateClassifier(b => new PythonClassifier(this, b));
+            return _services.GetBufferInfo(buffer)
+                .GetOrCreateSink(typeof(PythonClassifier), _ => new PythonClassifier(this));
         }
 
         public virtual IContentType ContentType {

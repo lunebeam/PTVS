@@ -101,7 +101,7 @@ namespace Microsoft.PythonTools {
             _interactiveOptions = new Lazy<PythonInteractiveOptions>(() => CreateInteractiveOptions("Interactive"));
             _debugInteractiveOptions = new Lazy<PythonInteractiveOptions>(() => CreateInteractiveOptions("Debug Interactive Window"));
             _logger = new PythonToolsLogger(ComponentModel.GetExtensions<IPythonToolsLogger>().ToArray());
-            _entryService = ComponentModel.GetService<AnalysisEntryService>();
+            _entryService = (AnalysisEntryService)ComponentModel.GetService<IAnalysisEntryService>();
             _diagnosticsProvider = new DiagnosticsProvider(container);
 
             _idleManager.OnIdle += OnIdleInitialization;
@@ -157,6 +157,9 @@ namespace Microsoft.PythonTools {
                 }
 
                 _logger.LogEvent(PythonLogEvent.SurveyNewsFrequency, GeneralOptions.SurveyNewsCheck.ToString());
+                _logger.LogEvent(PythonLogEvent.Experiments, new Dictionary<string, object> {
+                    { PythonInterpreterInformation.ExperimentalFactoryKey, PythonInterpreterInformation._experimentalFactory.Value }
+                });
             } catch (Exception ex) {
                 Debug.Fail(ex.ToUnhandledExceptionMessage(GetType()));
             }
@@ -168,11 +171,11 @@ namespace Microsoft.PythonTools {
                 return;
             }
 
-            _container.GetUIThread().InvokeAsync(() => {
+            _container.GetUIThread().InvokeTask(async () => {
                 var analyzer = CreateAnalyzer();
                 var oldAnalyzer = Interlocked.Exchange(ref _analyzer, analyzer);
                 if (oldAnalyzer != null) {
-                    analyzer.SwitchAnalyzers(oldAnalyzer);
+                    await analyzer.TransferFromOldAnalyzer(oldAnalyzer);
                     if (oldAnalyzer.RemoveUser()) {
                         oldAnalyzer.Dispose();
                     }
@@ -579,7 +582,7 @@ namespace Microsoft.PythonTools {
             if (_entryService == null || !_entryService.TryGetAnalysisEntry(view, snapshot.TextBuffer, out entry)) {
                 return null;
             }
-            return entry.Analyzer.WaitForRequest(entry.Analyzer.AnalyzeExpressionAsync(entry, view, span.GetStartPoint(snapshot)), "AnalyzeExpression");
+            return entry.Analyzer.WaitForRequest(entry.Analyzer.AnalyzeExpressionAsync(entry, span.GetStartPoint(snapshot)), "AnalyzeExpression");
         }
 
         public Task<IEnumerable<CompletionResult>> GetExpansionCompletionsAsync() {
