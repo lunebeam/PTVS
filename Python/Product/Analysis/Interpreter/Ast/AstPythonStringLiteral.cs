@@ -14,25 +14,18 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.Collections.Generic;
+using Microsoft.PythonTools.Analysis;
 
-namespace Microsoft.CookiecutterTools.Model {
-    class TemplateContext {
-        public List<ContextItem> Items { get; } = new List<ContextItem>();
-        public List<DteCommand> Commands { get; } = new List<DteCommand>();
-
-        public TemplateContext() :
-            this(null, null) {
+namespace Microsoft.PythonTools.Interpreter.Ast {
+    class AstPythonStringLiteral : AstPythonConstant {
+        public AstPythonStringLiteral(
+            string value,
+            IPythonType type,
+            params LocationInfo[] locations
+        ) : base(type, locations) {
+            Value = value;
         }
 
-        public TemplateContext(ContextItem[] items = null, DteCommand[] cmds = null) {
-            if (items != null) {
-                Items.AddRange(items);
-            }
-
-            if (cmds != null) {
-                Commands.AddRange(cmds);
-            }
-        }
+        public string Value { get; }
     }
 }
