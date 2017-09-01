@@ -19,9 +19,14 @@ using System.ComponentModel.Composition;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Editor;
+using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Shell;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Classification;
+using Microsoft.VisualStudio.Text.Editor;
+using Microsoft.VisualStudio.Text.IncrementalSearch;
+using Microsoft.VisualStudio.Text.Operations;
+using Microsoft.VisualStudio.TextManager.Interop;
 using Microsoft.VisualStudio.Utilities;
 using Microsoft.VisualStudioTools;
 
@@ -89,6 +94,26 @@ namespace Microsoft.PythonTools.Editor {
         [Import]
         private Lazy<IVsEditorAdaptersFactoryService> _editorAdaptersFactoryService = null;
         public IVsEditorAdaptersFactoryService EditorAdaptersFactoryService => _editorAdaptersFactoryService.Value;
+
+        [Import]
+        public ICompletionBroker CompletionBroker = null;
+
+        [Import(AllowDefault = true)]
+        public IEditorOptionsFactoryService EditorOptionsFactoryService = null;
+
+        [Import]
+        public IEditorOperationsFactoryService EditOperationsFactory = null;
+
+        [Import]
+        public ISignatureHelpBroker SignatureHelpBroker = null;
+
+        [Import]
+        public IQuickInfoBroker QuickInfoBroker = null;
+
+        [Import]
+        public IIncrementalSearchFactoryService IncrementalSearch = null;
+
+        public IVsTextManager2 VsTextManager2 => (IVsTextManager2)Site.GetService(typeof(SVsTextManager));
 
         #region Task Providers
 

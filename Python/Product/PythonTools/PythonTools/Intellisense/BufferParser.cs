@@ -27,14 +27,13 @@ using Microsoft.VisualStudio.Text;
 namespace Microsoft.PythonTools.Intellisense {
     using AP = AnalysisProtocol;
 
-    sealed class BufferParser : IDisposable {
+    sealed class BufferParser : IPythonTextBufferInfoEventSink, IDisposable {
         private readonly Timer _timer;
         internal readonly PythonEditorServices _services;
-        internal readonly AnalysisEntry AnalysisEntry;
+        private readonly VsProjectAnalyzer _analyzer;
 
-        private IList<PythonTextBufferInfo> _buffers;
+        private PythonTextBufferInfoWithRefCount[] _buffers;
         private bool _parsing, _requeue, _textChange, _parseImmediately;
-        private ITextDocument _document;
 
         /// <summary>
         /// Maps between buffer ID and buffer info.
@@ -46,14 +45,17 @@ namespace Microsoft.PythonTools.Intellisense {
         public static readonly object DoNotParse = new object();
         public static readonly object ParseImmediately = new object();
 
-        public BufferParser(AnalysisEntry entry) {
-            Debug.Assert(entry != null);
-
-            _services = entry.Analyzer._services;
+        public BufferParser(PythonEditorServices services, VsProjectAnalyzer analyzer, string filePath) {
+            _services = services ?? throw new ArgumentNullException(nameof(services));
+            _analyzer = analyzer ?? throw new ArgumentNullException(nameof(analyzer));
+            FilePath = filePath;
+            _buffers = Array.Empty<PythonTextBufferInfoWithRefCount>();
             _timer = new Timer(ReparseTimer, null, Timeout.Infinite, Timeout.Infinite);
-            _buffers = Array.Empty<PythonTextBufferInfo>();
-            AnalysisEntry = entry;
         }
+
+        public string FilePath { get; }
+        public bool IsTemporaryFile { get; set; }
+        public bool SuppressErrorList { get; set; }
 
         public PythonTextBufferInfo GetBuffer(ITextBuffer buffer) {
             return buffer == null ? null : _services.GetBufferInfo(buffer);
@@ -91,38 +93,59 @@ namespace Microsoft.PythonTools.Intellisense {
             return GetBuffer(buffer)?.LastSentSnapshot;
         }
 
-        internal void SetLastSentSnapshot(ITextSnapshot snapshot) {
-            if (snapshot == null) {
-                Debug.Fail("null snapshot");
-                return;
-            }
-
-            GetBuffer(snapshot.TextBuffer).LastSentSnapshot = snapshot;
-        }
-
-        public ITextBuffer[] Buffers {
-            get {
-                return _buffers.Where(x => !x.DoNotParse).Select(x => x.Buffer).ToArray();
-            }
-        }
+        public ITextBuffer[] AllBuffers => _buffers.Select(x => x.Buffer.Buffer).ToArray();
+        public ITextBuffer[] Buffers => _buffers.Where(x => !x.Buffer.DoNotParse).Select(x => x.Buffer.Buffer).ToArray();
 
         internal void AddBuffer(ITextBuffer textBuffer) {
             int newId;
+            var bi = _services.GetBufferInfo(textBuffer);
+
+            var entry = bi.AnalysisEntry;
+
+            if (entry == null) {
+                throw new InvalidOperationException("buffer must have a project entry before parsing");
+            }
+
             lock (this) {
-                var bi = _services.GetBufferInfo(textBuffer);
-                if (_buffers.Contains(bi)) {
+                var existing = _buffers.FirstOrDefault(b => b.Buffer == bi);
+                if (existing != null) {
+                    existing.AddRef();
                     return;
                 }
 
-                EnsureMutableBuffers();
-                _buffers.Add(bi);
-                newId = _buffers.Count - 1;
-                if (bi.ParseImmediately) {
-                    _parseImmediately = true;
+                _buffers = _buffers.Concat(Enumerable.Repeat(new PythonTextBufferInfoWithRefCount(bi), 1)).ToArray();
+                newId = _buffers.Length - 1;
+
+                if (!bi.SetAnalysisBufferId(newId)) {
+                    // Raced, and now the buffer belongs somewhere else.
+                    Debug.Fail("Race condition adding the buffer to a parser");
+                    _buffers[newId] = null;
+                    return;
                 }
+                _bufferIdMapping[newId] = bi;
             }
 
-            InitBuffer(textBuffer, newId);
+            if (bi.ParseImmediately) {
+                // Any buffer requesting immediate parsing enables it for
+                // the whole file.
+                _parseImmediately = true;
+            }
+
+            bi.AddSink(this, this);
+            VsProjectAnalyzer.ConnectErrorList(bi);
+        }
+
+        internal void ClearBuffers() {
+            lock (this) {
+                _bufferIdMapping.Clear();
+                foreach (var bi in _buffers) {
+                    bi.Buffer.SetAnalysisBufferId(-1);
+                    bi.Buffer.ClearAnalysisEntry();
+                    bi.Buffer.RemoveSink(this);
+                    VsProjectAnalyzer.DisconnectErrorList(bi.Buffer);
+                }
+                _buffers = Array.Empty<PythonTextBufferInfoWithRefCount>();
+            }
         }
 
         internal int RemoveBuffer(ITextBuffer subjectBuffer) {
@@ -131,67 +154,23 @@ namespace Microsoft.PythonTools.Intellisense {
 
             lock (this) {
                 if (bi != null) {
-                    EnsureMutableBuffers();
-                    _buffers.Remove(bi);
-                }
-                result = _buffers.Count;
-            }
+                    var existing = _buffers.FirstOrDefault(b => b.Buffer == bi);
+                    if (existing != null && existing.Release()) {
+                        _buffers = _buffers.Where(b => b != existing).ToArray();
 
-            if (bi != null) {
-                UninitBuffer(bi);
+                        bi.RemoveSink(this);
+
+                        VsProjectAnalyzer.DisconnectErrorList(bi);
+                        _bufferIdMapping.Remove(bi.AnalysisBufferId);
+                        bi.SetAnalysisBufferId(-1);
+
+                        bi.Buffer.Properties.RemoveProperty(typeof(PythonTextBufferInfo));
+                    }
+                }
+                result = _buffers.Length;
             }
 
             return result;
-        }
-
-        private void UninitBuffer(PythonTextBufferInfo subjectBuffer) {
-            if (subjectBuffer == null) {
-                throw new ArgumentNullException(nameof(subjectBuffer));
-            }
-            subjectBuffer.OnChangedLowPriority -= BufferChangedLowPriority;
-            VsProjectAnalyzer.DisconnectErrorList(subjectBuffer);
-            lock (this) {
-                _bufferIdMapping.Remove(subjectBuffer.AnalysisEntryId);
-                subjectBuffer.SetAnalysisEntryId(-1);
-            }
-
-
-            if (_document != null) {
-                _document.EncodingChanged -= EncodingChanged;
-                _document = null;
-            }
-        }
-
-        private void InitBuffer(ITextBuffer buffer, int id = 0) {
-            var bi = _services.GetBufferInfo(buffer);
-            if (!bi.SetAnalysisEntryId(id)) {
-                Debug.Fail("Buffer is already initialized");
-                return;
-            }
-
-            bi.OnChangedLowPriority += BufferChangedLowPriority;
-            VsProjectAnalyzer.ConnectErrorList(bi);
-
-            lock (this) {
-                _bufferIdMapping[id] = bi;
-            }
-
-            ITextDocument doc;
-            if (buffer.Properties.TryGetProperty(typeof(ITextDocument), out doc) && doc != _document) {
-                if (_document != null) {
-                    _document.EncodingChanged -= EncodingChanged;
-                }
-                _document = doc;
-                if (_document != null) {
-                    _document.EncodingChanged += EncodingChanged;
-                }
-            }
-        }
-
-        private void EnsureMutableBuffers() {
-            if (_buffers.IsReadOnly) {
-                _buffers = new List<PythonTextBufferInfo>(_buffers);
-            }
         }
 
         internal void ReparseTimer(object unused) {
@@ -206,7 +185,9 @@ namespace Microsoft.PythonTools.Intellisense {
                 }
 
                 _parsing = true;
-                snapshots = _buffers.Where(b => !b.DoNotParse).Select(b => b.CurrentSnapshot).ToArray();
+                snapshots = _buffers
+                    .Where(b => !b.Buffer.DoNotParse)
+                    .Select(b => b.Buffer.CurrentSnapshot).ToArray();
             }
 
             ParseBuffers(snapshots).WaitAndHandleAllExceptions(_services.Site);
@@ -229,7 +210,7 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         private Task ParseBuffers(IEnumerable<ITextSnapshot> snapshots) {
-            return ParseBuffersAsync(_services, AnalysisEntry, snapshots);
+            return ParseBuffersAsync(_services, _analyzer, snapshots);
         }
 
         private static IEnumerable<ITextVersion> GetVersions(ITextVersion from, ITextVersion to) {
@@ -240,7 +221,7 @@ namespace Microsoft.PythonTools.Intellisense {
 
         private static AP.FileUpdate GetUpdateForSnapshot(PythonEditorServices services, ITextSnapshot snapshot) {
             var buffer = services.GetBufferInfo(snapshot.TextBuffer);
-            if (buffer.DoNotParse || snapshot.IsReplBufferWithCommand() || buffer.AnalysisEntryId < 0) {
+            if (buffer.DoNotParse || snapshot.IsReplBufferWithCommand() || buffer.AnalysisBufferId < 0) {
                 return null;
             }
 
@@ -267,7 +248,7 @@ namespace Microsoft.PythonTools.Intellisense {
                 return new AP.FileUpdate {
                     content = snapshot.GetText(),
                     version = snapshot.Version.VersionNumber,
-                    bufferId = buffer.AnalysisEntryId,
+                    bufferId = buffer.AnalysisBufferId,
                     kind = AP.FileUpdateKind.reset
                 };
             }
@@ -279,13 +260,18 @@ namespace Microsoft.PythonTools.Intellisense {
             return new AP.FileUpdate() {
                 versions = versions,
                 version = snapshot.Version.VersionNumber,
-                bufferId = buffer.AnalysisEntryId,
+                bufferId = buffer.AnalysisBufferId,
                 kind = AP.FileUpdateKind.changes
             };
         }
 
         [Conditional("DEBUG")]
-        private static void ValidateBufferContents(IEnumerable<ITextSnapshot> snapshots, Dictionary<int, string> code) {
+        private static void ValidateBufferContents(IEnumerable<ITextSnapshot> snapshots, AP.FileUpdateResponse response) {
+#if DEBUG
+            if (response.newCode == null) {
+                return;
+            }
+
             foreach (var snapshot in snapshots) {
                 var bi = PythonTextBufferInfo.TryGetForBuffer(snapshot.TextBuffer);
                 if (bi == null) {
@@ -293,41 +279,51 @@ namespace Microsoft.PythonTools.Intellisense {
                 }
 
                 string newCode;
-                if (!code.TryGetValue(bi.AnalysisEntryId, out newCode)) {
+                if (!response.newCode.TryGetValue(bi.AnalysisBufferId, out newCode)) {
                     continue;
                 }
 
                 Debug.Assert(newCode.TrimEnd() == snapshot.GetText().TrimEnd(), "Buffer content mismatch");
             }
+#endif
         }
 
         internal static async Task ParseBuffersAsync(
             PythonEditorServices services,
-            AnalysisEntry entry,
+            VsProjectAnalyzer analyzer,
             IEnumerable<ITextSnapshot> snapshots
         ) {
-            var updates = snapshots.Select(s => GetUpdateForSnapshot(services, s)).Where(u => u != null).ToList();
+            var updates = snapshots
+                .GroupBy(s => PythonTextBufferInfo.TryGetForBuffer(s.TextBuffer)?.AnalysisEntry.FileId ?? -1)
+                .Where(g => g.Key >= 0)
+                .Select(g => Tuple.Create(
+                    g.Key,
+                    g.Select(s => GetUpdateForSnapshot(services, s)).Where(u => u != null).ToArray()
+                ))
+                .ToList();
 
             if (!updates.Any()) {
                 return;
             }
 
-            entry.Analyzer._analysisComplete = false;
-            Interlocked.Increment(ref entry.Analyzer._parsePending);
+            analyzer._analysisComplete = false;
+            Interlocked.Increment(ref analyzer._parsePending);
 
-            var res = await entry.Analyzer.SendRequestAsync(
-                new AP.FileUpdateRequest() {
-                    fileId = entry.FileId,
-                    updates = updates.ToArray()
+            foreach (var update in updates) {
+                var res = await analyzer.SendRequestAsync(
+                    new AP.FileUpdateRequest() {
+                        fileId = update.Item1,
+                        updates = update.Item2
+                    }
+                );
+
+                if (res != null) {
+                    Debug.Assert(res.failed != true);
+                    analyzer.OnAnalysisStarted();
+                    ValidateBufferContents(snapshots, res);
+                } else {
+                    Interlocked.Decrement(ref analyzer._parsePending);
                 }
-            );
-
-            if (res != null) {
-                Debug.Assert(res.failed != true);
-                entry.Analyzer.OnAnalysisStarted();
-                ValidateBufferContents(snapshots, res.newCode);
-            } else {
-                Interlocked.Decrement(ref entry.Analyzer._parsePending);
             }
         }
 
@@ -348,40 +344,6 @@ namespace Microsoft.PythonTools.Intellisense {
                 }
             }
             return changes.ToArray();
-        }
-
-        internal void EncodingChanged(object sender, EncodingChangedEventArgs e) {
-            lock (this) {
-                if (_parsing) {
-                    // we are currently parsing, just reque when we complete
-                    _requeue = true;
-                    _timer.Change(Timeout.Infinite, Timeout.Infinite);
-                } else {
-                    Requeue();
-                }
-            }
-        }
-
-        internal void BufferChangedLowPriority(object sender, TextContentChangedEventArgs e) {
-            lock (this) {
-                // only immediately re-parse on line changes after we've seen a text change.
-
-                if (_parsing) {
-                    // we are currently parsing, just reque when we complete
-                    _requeue = true;
-                    _timer.Change(Timeout.Infinite, Timeout.Infinite);
-                } else if (_parseImmediately) {
-                    // we are a test buffer, we should requeue immediately
-                    Requeue();
-                } else if (LineAndTextChanges(e)) {
-                    // user pressed enter, we should requeue immediately
-                    Requeue();
-                } else {
-                    // parse if the user doesn't do anything for a while.
-                    _textChange = IncludesTextChanges(e);
-                    _timer.Change(ReparseDelay, Timeout.Infinite);
-                }
-            }
         }
 
         internal void Requeue() {
@@ -430,16 +392,68 @@ namespace Microsoft.PythonTools.Intellisense {
         }
 
         public void Dispose() {
-            foreach (var buffer in _buffers) {
-                UninitBuffer(buffer);
-            }
+            ClearBuffers();
             _timer.Dispose();
-            AnalysisEntry.ClearBufferParser(this);
         }
 
-        internal ITextDocument Document {
-            get {
-                return _document;
+        Task IPythonTextBufferInfoEventSink.PythonTextBufferEventAsync(PythonTextBufferInfo sender, PythonTextBufferInfoEventArgs e) {
+            switch (e.Event) {
+                case PythonTextBufferInfoEvents.TextContentChangedLowPriority:
+                    lock (this) {
+                        // only immediately re-parse on line changes after we've seen a text change.
+                        var ne = (e as PythonTextBufferInfoNestedEventArgs)?.NestedEventArgs as TextContentChangedEventArgs;
+
+                        if (_parsing) {
+                            // we are currently parsing, just reque when we complete
+                            _requeue = true;
+                            _timer.Change(Timeout.Infinite, Timeout.Infinite);
+                        } else if (_parseImmediately) {
+                            // we are a test buffer, we should requeue immediately
+                            Requeue();
+                        } else if (ne == null) {
+                            // failed to get correct type for this event
+                            Debug.Fail("Failed to get correct event type");
+                        } else if (LineAndTextChanges(ne)) {
+                            // user pressed enter, we should requeue immediately
+                            Requeue();
+                        } else {
+                            // parse if the user doesn't do anything for a while.
+                            _textChange = IncludesTextChanges(ne);
+                            _timer.Change(ReparseDelay, Timeout.Infinite);
+                        }
+                    }
+                    break;
+
+                case PythonTextBufferInfoEvents.DocumentEncodingChanged:
+                    lock (this) {
+                        if (_parsing) {
+                            // we are currently parsing, just reque when we complete
+                            _requeue = true;
+                            _timer.Change(Timeout.Infinite, Timeout.Infinite);
+                        } else {
+                            Requeue();
+                        }
+                    }
+                    break;
+            }
+            return Task.CompletedTask;
+        }
+
+        private class PythonTextBufferInfoWithRefCount {
+            public readonly PythonTextBufferInfo Buffer;
+            private int _refCount;
+
+            public PythonTextBufferInfoWithRefCount(PythonTextBufferInfo buffer) {
+                Buffer = buffer;
+                _refCount = 1;
+            }
+
+            public void AddRef() {
+                Interlocked.Increment(ref _refCount);
+            }
+
+            public bool Release() {
+                return Interlocked.Decrement(ref _refCount) == 0;
             }
         }
     }

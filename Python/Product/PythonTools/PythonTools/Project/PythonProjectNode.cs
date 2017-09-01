@@ -1120,15 +1120,29 @@ namespace Microsoft.PythonTools.Project {
             return _analyzer;
         }
 
+        public VsProjectAnalyzer TryGetAnalyzer() {
+            return _analyzer;
+        }
+
         private VsProjectAnalyzer CreateAnalyzer() {
             var model = Site.GetComponentModel();
             var interpreterService = model.GetService<IInterpreterRegistryService>();
             var factory = GetInterpreterFactory();
+
+            bool inProc = false;
+            var ipp = BuildProject.GetProperty("_InProcessPythonAnalyzer");
+            if (ipp != null) {
+                if (ipp.EvaluatedValue?.IsTrue() ?? false) {
+                    inProc = true;
+                }
+            }
+
             var res = new VsProjectAnalyzer(
                 model.GetService<PythonEditorServices>(),
                 factory,
                 false,
-                BuildProject
+                BuildProject,
+                outOfProcAnalyzer: !inProc
             );
             res.AbnormalAnalysisExit += AnalysisProcessExited;
             res.AnalyzerNeedsRestart += OnActiveInterpreterChanged;
@@ -1365,7 +1379,7 @@ namespace Microsoft.PythonTools.Project {
 
                 if (oldAnalyzer != null) {
                     if (analyzer != null) {
-                        analyzer.SwitchAnalyzers(oldAnalyzer);
+                        await analyzer.TransferFromOldAnalyzer(oldAnalyzer);
                     }
                     if (oldAnalyzer.RemoveUser()) {
                         oldAnalyzer.Dispose();
@@ -1376,11 +1390,11 @@ namespace Microsoft.PythonTools.Project {
 
                 var defAnalyzer = Site.GetPythonToolsService().MaybeDefaultAnalyzer;
                 if (defAnalyzer != null) {
-                    foreach (var entry in files
-                        .Select(p => defAnalyzer.GetAnalysisEntryFromPath(p))
-                        .Where(e => e != null)) {
-
-                        await defAnalyzer.UnloadFileAsync(entry);
+                    foreach (var f in files) {
+                        var entry = defAnalyzer.GetAnalysisEntryFromPath(f);
+                        if (entry != null) {
+                            await defAnalyzer.UnloadFileAsync(entry);
+                        }
                     }
                 }
 
