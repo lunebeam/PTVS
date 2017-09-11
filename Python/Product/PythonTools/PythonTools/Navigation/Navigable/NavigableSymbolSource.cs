@@ -17,11 +17,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
+using Microsoft.PythonTools.Repl;
+using Microsoft.VisualStudio.InteractiveWindow;
 using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Language.StandardClassification;
 using Microsoft.VisualStudio.Shell;
@@ -40,6 +43,7 @@ namespace Microsoft.PythonTools.Navigation.Navigable {
 
         private static readonly string[] _classifications = new string[] {
             PredefinedClassificationTypeNames.Identifier,
+            //PredefinedClassificationTypeNames.String,
             PythonPredefinedClassificationTypeNames.Class,
             PythonPredefinedClassificationTypeNames.Function,
             PythonPredefinedClassificationTypeNames.Module,
@@ -79,12 +83,19 @@ namespace Microsoft.PythonTools.Navigation.Navigable {
                 cancellationToken.ThrowIfCancellationRequested();
 
                 // Quickly eliminate anything that isn't the right classification.
-                var name = token.ClassificationType.Classification;
-                if (!_classifications.Any(c => name.Contains(c))) {
+                if (!_classifications.Any(c => token.ClassificationType.IsOfType(c))) {
                     continue;
                 }
 
                 cancellationToken.ThrowIfCancellationRequested();
+
+                //if (token.ClassificationType.IsOfType(PredefinedClassificationTypeNames.String)) {
+                //    var r = GetNavigableFile(token.Span);
+                //    if (r != null) {
+                //        return r;
+                //    }
+                //    continue;
+                //}
 
                 // Check with the analyzer, which will give us a precise
                 // result, including the source location.
@@ -94,6 +105,47 @@ namespace Microsoft.PythonTools.Navigation.Navigable {
 
                 if (result.Any()) {
                     return new NavigableSymbol(_serviceProvider, result.First(), token.Span);
+                }
+            }
+
+            return null;
+        }
+
+        private string GetCurrentWorkingDir() {
+            string cwd;
+            var replEval = _buffer.GetInteractiveWindow()?.GetPythonEvaluator();
+            if (replEval != null) {
+                cwd = replEval.CurrentWorkingDirectory;
+            } else if (!string.IsNullOrEmpty(cwd = _buffer.GetFilePath())) {
+                cwd = PathUtils.GetParent(cwd);
+            } else {
+                cwd = Environment.CurrentDirectory;
+            }
+            return cwd;
+        }
+
+        internal static readonly char[] QuoteChars = new[] { '"', '\'' };
+
+        private NavigableSymbol GetNavigableFile(SnapshotSpan span) {
+            var filePath = span.GetText();
+            bool quoteBackslash = !span.GetText().TakeWhile(c => !QuoteChars.Contains(c)).Any(c => c == 'r' || c == 'R');
+
+            if (quoteBackslash) {
+                filePath = filePath.Replace("\\\\", "\\");
+            }
+
+            if (Path.GetInvalidPathChars().Any(c => filePath.Contains(c))) {
+                return null;
+            }
+
+            if (Path.IsPathRooted(filePath)) {
+                if (File.Exists(filePath)) {
+                    return new NavigableSymbol(_serviceProvider, new AnalysisLocation(filePath, 1, 1), span);
+                }
+            } else {
+                filePath = Path.Combine(GetCurrentWorkingDir(), filePath);
+                if (File.Exists(filePath)) {
+                    return new NavigableSymbol(_serviceProvider, new AnalysisLocation(filePath, 1, 1), span);
                 }
             }
 
