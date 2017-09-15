@@ -67,6 +67,7 @@ namespace Microsoft.CookiecutterTools.View {
                 new FeedTemplateSource(feedUrl),
                 new GitHubTemplateSource(gitHubClient),
                 executeCommand,
+                TimeoutRetryQuery,
                 projectSystemClient
             );
 
@@ -95,6 +96,14 @@ namespace Microsoft.CookiecutterTools.View {
             InitializeComponent();
 
             _searchPage.SelectedTemplateChanged += SearchPage_SelectedTemplateChanged;
+        }
+
+        private bool TimeoutRetryQuery(string url) {
+            return MessageBox.Show(
+                Strings.CloneTimeoutRetryQueryMessage.FormatUI(url),
+                Strings.ProductTitle,
+                MessageBoxButton.YesNo
+            ) == MessageBoxResult.Yes;
         }
 
         public async Task InitializeAsync(bool checkForUpdates, CookiecutterSessionStartInfo ssi) {

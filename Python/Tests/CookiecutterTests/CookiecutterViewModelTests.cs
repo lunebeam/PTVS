@@ -80,6 +80,7 @@ namespace CookiecutterTests {
                 _feedTemplateSource,
                 _gitHubTemplateSource,
                 null,
+                null,
                 _projectSystemClient
             );
             _vm.UserConfigFilePath = UserConfigFilePath;

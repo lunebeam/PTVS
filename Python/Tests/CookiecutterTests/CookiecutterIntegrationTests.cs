@@ -114,6 +114,7 @@ namespace CookiecutterTests {
                 _feedTemplateSource,
                 _gitHubTemplateSource,
                 ExecuteCommand,
+                null,
                 _projectSystemClient
             );
 

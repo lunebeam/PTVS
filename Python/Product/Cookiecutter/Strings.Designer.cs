@@ -162,6 +162,17 @@ namespace Microsoft.CookiecutterTools {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to The clone operation for &apos;{0}&apos; is taking a long time. The repository may not exist or may require credentials.
+        ///
+        ///Would you like to try again with the console visible so you can enter credentials?.
+        /// </summary>
+        public static string CloneTimeoutRetryQueryMessage {
+            get {
+                return ResourceManager.GetString("CloneTimeoutRetryQueryMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to ----- Failed to clone template &apos;{0}&apos; -----.
         /// </summary>
         public static string CloningTemplateFailed {

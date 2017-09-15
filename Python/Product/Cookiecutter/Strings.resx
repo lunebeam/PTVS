@@ -167,6 +167,12 @@ You can get more information by running Visual Studio with the /log parameter on
 Please delete the installed template and try again.</value>
     <comment>{0} is a template name; {1} is a file path</comment>
   </data>
+  <data name="CloneTimeoutRetryQueryMessage" xml:space="preserve">
+    <value>The clone operation for '{0}' is taking a long time. The repository may not exist or may require credentials.
+
+Would you like to try again with the console visible so you can enter credentials?</value>
+    <comment>{0} is a URL to a repository.</comment>
+  </data>
   <data name="InstallingCookiecutterStarted" xml:space="preserve">
     <value>----- Installing cookiecutter -----</value>
   </data>

@@ -488,6 +488,10 @@ namespace Microsoft.CookiecutterTools.Infrastructure {
                 return;
             }
 
+            lock (_lastOutputTimeStampLock) {
+                _lastOutputTimeStamp = DateTime.Now;
+            }
+
             if (e.Data == null) {
                 bool shouldExit;
                 lock (_seenNullLock) {
@@ -509,6 +513,10 @@ namespace Microsoft.CookiecutterTools.Infrastructure {
         private void OnErrorDataReceived(object sender, DataReceivedEventArgs e) {
             if (_isDisposed) {
                 return;
+            }
+
+            lock (_lastOutputTimeStampLock) {
+                _lastOutputTimeStamp = DateTime.Now;
             }
 
             if (e.Data == null) {
@@ -695,6 +703,15 @@ namespace Microsoft.CookiecutterTools.Infrastructure {
             return true;
         }
 
+        private DateTime _lastOutputTimeStamp;
+        private object _lastOutputTimeStampLock = new object();
+
+        /// <summary>
+        /// Time span to allow after the last output is received before raising
+        /// a <see cref="TimeoutException"/> in <see cref="GetAwaiter"/>.
+        /// </summary>
+        public TimeSpan AwaiterOutputTimeout { get; set; } = TimeSpan.Zero;
+
         /// <summary>
         /// Enables using 'await' on this object.
         /// </summary>
@@ -711,9 +728,28 @@ namespace Microsoft.CookiecutterTools.Infrastructure {
                     tcs.SetResult(_process.ExitCode);
                     _awaiter = tcs.Task;
                 } else {
+                    var timeout = AwaiterOutputTimeout;
                     _awaiter = Task.Run(() => {
                         try {
-                            Wait();
+                            if (timeout == TimeSpan.Zero) {
+                                Wait();
+                            } else {
+                                lock (_lastOutputTimeStampLock) {
+                                    _lastOutputTimeStamp = DateTime.Now;
+                                }
+
+                                while (true) {
+                                    if (Wait(TimeSpan.FromMilliseconds(500))) {
+                                        break;
+                                    }
+
+                                    lock (_lastOutputTimeStampLock) {
+                                        if (DateTime.Now > _lastOutputTimeStamp + timeout) {
+                                            throw new TimeoutException("Process did not terminate or produce any output for {0} second(s)".FormatUI(timeout.TotalSeconds));
+                                        }
+                                    }
+                                }
+                            }
                         } catch (Win32Exception) {
                             throw new OperationCanceledException();
                         }

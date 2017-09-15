@@ -46,6 +46,7 @@ namespace Microsoft.CookiecutterTools.ViewModel {
         private readonly IProjectSystemClient _projectSystemClient;
         private readonly Redirector _outputWindow;
         private readonly Action<string, string> _executeCommand;
+        private readonly Predicate<string> _timeoutRetryQuery;
         public static readonly ICommand LoadMore = new RoutedCommand();
         public static readonly ICommand OpenInBrowser = new RoutedCommand();
         public static readonly ICommand RunSelection = new RoutedCommand();
@@ -123,7 +124,7 @@ namespace Microsoft.CookiecutterTools.ViewModel {
         public CookiecutterViewModel() {
         }
 
-        public CookiecutterViewModel(ICookiecutterClient cutter, IGitHubClient githubClient, IGitClient gitClient, ICookiecutterTelemetry telemetry, Redirector outputWindow, ILocalTemplateSource installedTemplateSource, ITemplateSource feedTemplateSource, ITemplateSource gitHubTemplateSource, Action<string, string> executeCommand, IProjectSystemClient projectSystemClient) {
+        public CookiecutterViewModel(ICookiecutterClient cutter, IGitHubClient githubClient, IGitClient gitClient, ICookiecutterTelemetry telemetry, Redirector outputWindow, ILocalTemplateSource installedTemplateSource, ITemplateSource feedTemplateSource, ITemplateSource gitHubTemplateSource, Action<string, string> executeCommand, Predicate<string> timeoutRetryQuery, IProjectSystemClient projectSystemClient) {
             _cutterClient = cutter;
             _githubClient = githubClient;
             _gitClient = gitClient;
@@ -133,6 +134,7 @@ namespace Microsoft.CookiecutterTools.ViewModel {
             _installedSource = installedTemplateSource;
             _githubSource = gitHubTemplateSource;
             _executeCommand = executeCommand;
+            _timeoutRetryQuery = timeoutRetryQuery;
             _projectSystemClient = projectSystemClient;
             if (_projectSystemClient != null) {
                 _projectSystemClient.SolutionOpenChanged += OnSolutionLoadedChanged;
@@ -814,7 +816,7 @@ namespace Microsoft.CookiecutterTools.ViewModel {
 
                     Directory.CreateDirectory(InstalledFolderPath);
 
-                    selection.ClonedPath = await _gitClient.CloneAsync(selection.RemoteUrl, InstalledFolderPath);
+                    selection.ClonedPath = await _gitClient.CloneAsync(selection.RemoteUrl, InstalledFolderPath, _timeoutRetryQuery);
 
                     CloningStatus = OperationStatus.Succeeded;
 

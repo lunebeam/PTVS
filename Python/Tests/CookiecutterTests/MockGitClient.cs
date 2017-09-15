@@ -45,7 +45,7 @@ namespace CookiecutterTests {
             throw new NotImplementedException();
         }
 
-        public Task<string> CloneAsync(string repoUrl, string targetParentFolderPath) {
+        public Task<string> CloneAsync(string repoUrl, string targetParentFolderPath, Predicate<string> timeoutRetryQuery) {
             throw new NotImplementedException();
         }
     }

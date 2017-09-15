@@ -20,6 +20,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CookiecutterTools.Infrastructure;
+using System.Security;
 
 namespace Microsoft.CookiecutterTools.Model {
     class GitClient : IGitClient {
@@ -31,7 +32,7 @@ namespace Microsoft.CookiecutterTools.Model {
             _redirector = redirector;
         }
 
-        public async Task<string> CloneAsync(string repoUrl, string targetParentFolderPath) {
+        public async Task<string> CloneAsync(string repoUrl, string targetParentFolderPath, Predicate<string> timeoutRetryQuery) {
             Directory.CreateDirectory(targetParentFolderPath);
 
             string localTemplateFolder = GetClonedFolder(repoUrl, targetParentFolderPath);
@@ -40,6 +41,41 @@ namespace Microsoft.CookiecutterTools.Model {
                 ShellUtils.DeleteDirectory(localTemplateFolder);
             }
 
+            ProcessOutputResult r;
+            try {
+                r = await InternalCloneAsync(repoUrl, targetParentFolderPath, false);
+            } catch (TimeoutException) {
+                if (Directory.Exists(localTemplateFolder)) {
+                    ShellUtils.DeleteDirectory(localTemplateFolder);
+                }
+
+                if (timeoutRetryQuery?.Invoke(repoUrl) == true) {
+                    r = await InternalCloneAsync(repoUrl, targetParentFolderPath, true);
+                } else {
+                    throw;
+                }
+            }
+
+            if (r.ExitCode < 0 || HasFatalError(r.StandardErrorLines)) {
+                if (Directory.Exists(localTemplateFolder)) {
+                    // Don't leave a failed clone on disk
+                    try {
+                        ShellUtils.DeleteDirectory(localTemplateFolder);
+                    } catch (Exception ex) when (!ex.IsCriticalException()) {
+                    }
+                }
+
+                throw new ProcessException(r);
+            }
+
+            if (!Directory.Exists(localTemplateFolder)) {
+                throw new ProcessException(r);
+            }
+
+            return localTemplateFolder;
+        }
+
+        private async Task<ProcessOutputResult> InternalCloneAsync(string repoUrl, string targetParentFolderPath, bool visible) {
             // Ensure we always capture the output, because we need to check for errors in stderr
             var stdOut = new List<string>();
             var stdErr = new List<string>();
@@ -52,33 +88,23 @@ namespace Microsoft.CookiecutterTools.Model {
             }
 
             var arguments = new string[] { "clone", repoUrl };
-            using (var output = ProcessOutput.Run(_gitExeFilePath, arguments, targetParentFolderPath, GetEnvironment(), false, redirector)) {
-                await output;
+            using (var output = ProcessOutput.Run(_gitExeFilePath, arguments, targetParentFolderPath, GetEnvironment(), visible, redirector)) {
+                try {
+                    if (!visible) {
+                        output.AwaiterOutputTimeout = TimeSpan.FromSeconds(5);
+                    }
+                    await output;
+                } catch (TimeoutException) {
+                    output.Kill();
+                    throw;
+                }
 
-                var r = new ProcessOutputResult() {
+                return new ProcessOutputResult() {
                     ExeFileName = _gitExeFilePath,
                     ExitCode = output.ExitCode,
                     StandardOutputLines = stdOut.ToArray(),
                     StandardErrorLines = stdErr.ToArray(),
                 };
-
-                if (output.ExitCode < 0 || HasFatalError(stdErr)) {
-                    if (Directory.Exists(localTemplateFolder)) {
-                        // Don't leave a failed clone on disk
-                        try {
-                            ShellUtils.DeleteDirectory(localTemplateFolder);
-                        } catch (Exception ex) when (!ex.IsCriticalException()) {
-                        }
-                    }
-
-                    throw new ProcessException(r);
-                }
-
-                if (!Directory.Exists(localTemplateFolder)) {
-                    throw new ProcessException(r);
-                }
-
-                return localTemplateFolder;
             }
         }
 

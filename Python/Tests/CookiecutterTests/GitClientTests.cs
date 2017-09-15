@@ -33,7 +33,7 @@ namespace CookiecutterTests {
 
             try {
                 // Clone a repo that uses folders with invalid characters on Windows
-                await client.CloneAsync(GitHubWindowsIncompatibleRepoUrl, outputParentFolder);
+                await client.CloneAsync(GitHubWindowsIncompatibleRepoUrl, outputParentFolder, null);
                 Assert.Fail($"Failed to generate exception when cloning repository. You should manually check that cloning '{GitHubWindowsIncompatibleRepoUrl}' still fails on Windows.");
             } catch (ProcessException ex) {
                 Assert.AreNotEqual(0, ex.Result.StandardErrorLines.Length);
