@@ -49,7 +49,17 @@ namespace Microsoft.PythonTools.Interpreter {
         /// </summary>
         bool IsReady { get; }
 
+        string ExtensionDisplayName { get; }
+
+        string IndexDisplayName { get; }
+
+        string SearchHelpText { get; }
+
+        string GetInstallCommandDisplayName(string searchQuery);
+
         event EventHandler IsReadyChanged;
+
+        bool CanBeUninstalled(PackageSpec package);
 
         /// <summary>
         /// Prepares the package manager for use. This only needs to be called

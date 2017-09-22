@@ -19,7 +19,7 @@ namespace Microsoft.PythonTools.EnvironmentsList {
     // class via a tool like ResGen or Visual Studio.
     // To add or remove a member, edit your .ResX file then rerun ResGen
     // with the /str option, or rebuild your VS project.
-    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "4.0.0.0")]
+    [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "15.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
     public class Resources {
@@ -785,29 +785,11 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to PyPI.
-        /// </summary>
-        public static string PipDefaultIndexName {
-            get {
-                return ResourceManager.GetString("PipDefaultIndexName", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Clear search filter.
         /// </summary>
         public static string PipExtensionClearSearchToolTip {
             get {
                 return ResourceManager.GetString("PipExtensionClearSearchToolTip", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Packages.
-        /// </summary>
-        public static string PipExtensionDisplayName {
-            get {
-                return ResourceManager.GetString("PipExtensionDisplayName", resourceCulture);
             }
         }
         
@@ -844,33 +826,6 @@ namespace Microsoft.PythonTools.EnvironmentsList {
         public static string PipExtensionInstallPipToolTip {
             get {
                 return ResourceManager.GetString("PipExtensionInstallPipToolTip", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to &quot;pip install {0}&quot;.
-        /// </summary>
-        public static string PipExtensionPipInstall {
-            get {
-                return ResourceManager.GetString("PipExtensionPipInstall", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to  from {0}.
-        /// </summary>
-        public static string PipExtensionPipInstallFrom {
-            get {
-                return ResourceManager.GetString("PipExtensionPipInstallFrom", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Search PyPI and installed packages.
-        /// </summary>
-        public static string PipExtensionSearchPyPILabel {
-            get {
-                return ResourceManager.GetString("PipExtensionSearchPyPILabel", resourceCulture);
             }
         }
         
