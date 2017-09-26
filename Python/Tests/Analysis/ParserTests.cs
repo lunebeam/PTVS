@@ -37,7 +37,6 @@ namespace AnalysisTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal static readonly PythonLanguageVersion[] AllVersions = new[] { PythonLanguageVersion.V24, PythonLanguageVersion.V25, PythonLanguageVersion.V26, PythonLanguageVersion.V27, PythonLanguageVersion.V30, PythonLanguageVersion.V31, PythonLanguageVersion.V32, PythonLanguageVersion.V33, PythonLanguageVersion.V34, PythonLanguageVersion.V35, PythonLanguageVersion.V36, PythonLanguageVersion.V37 };
@@ -2545,6 +2544,25 @@ namespace AnalysisTests {
         }
 
         [TestMethod, Priority(0)]
+        public void AsyncForComprehension() {
+            foreach (var version in V36AndUp) {
+                var ast = ParseFileNoErrors("AsyncFor.py", version);
+                CheckAst(
+                    ast,
+                    CheckSuite(CheckCoroutineDef(CheckFuncDef("f", NoParameters, CheckSuite(
+                        CheckExprStmt(CheckListComp(Fob, AsyncCompFor(Fob, Oar))),
+                        CheckExprStmt(CheckGeneratorComp(Fob, AsyncCompFor(Fob, Oar))),
+                        CheckExprStmt(CheckSetComp(Fob, AsyncCompFor(Fob, Oar))),
+                        CheckExprStmt(CheckDictComp(Fob, Fob, AsyncCompFor(Fob, Oar))),
+                        CheckExprStmt(CheckListComp(Fob, CompFor(Fob, Oar), AsyncCompFor(Oar, Baz))),
+                        CheckExprStmt(CheckGeneratorComp(Fob, CompFor(Fob, Oar), AsyncCompFor(Oar, Baz))),
+                        CheckExprStmt(CheckListComp(CheckAwaitExpression(Fob), AsyncCompFor(Fob, Oar)))
+                    ))))
+                );
+            }
+        }
+
+        [TestMethod, Priority(0)]
         public void ConditionalExpr() {
             foreach (var version in AllVersions) {
                 CheckAst(
@@ -2777,9 +2795,7 @@ namespace AnalysisTests {
 
                 switch (curVersion.Version) {
                     case PythonLanguageVersion.V36:
-                        if (// https://github.com/Microsoft/PTVS/issues/1638
-                            filename.Equals("test_coroutines.py", StringComparison.OrdinalIgnoreCase) ||
-                            // https://github.com/Microsoft/PTVS/issues/1637
+                        if (// https://github.com/Microsoft/PTVS/issues/1637
                             filename.Equals("test_unicode_identifiers.py", StringComparison.OrdinalIgnoreCase) ||
                             // https://github.com/Microsoft/PTVS/issues/1645
                             filename.Equals("test_grammar.py", StringComparison.OrdinalIgnoreCase)
@@ -2900,9 +2916,11 @@ namespace AnalysisTests {
         }
 
         private static PythonAst ParseFile(string filename, ErrorSink errorSink, PythonLanguageVersion version, Severity indentationInconsistencySeverity = Severity.Ignore) {
-            var parser = Parser.CreateParser(TestData.Read(Path.Combine("TestData\\Grammar", filename)), version, new ParserOptions() { ErrorSink = errorSink, IndentationInconsistencySeverity = indentationInconsistencySeverity });
-            var ast = parser.ParseFile();
-            return ast;
+            var src = TestData.GetPath("TestData", "Grammar", filename);
+            using (var reader = new StreamReader(src, true)) {
+                var parser = Parser.CreateParser(reader, version, new ParserOptions() { ErrorSink = errorSink, IndentationInconsistencySeverity = indentationInconsistencySeverity });
+                return parser.ParseFile();
+            }
         }
 
         private void CheckAst(PythonAst ast, Action<Statement> checkBody) {
@@ -3877,6 +3895,17 @@ namespace AnalysisTests {
             return iter => {
                 Assert.AreEqual(typeof(ComprehensionFor), iter.GetType());
                 var forIter = (ComprehensionFor)iter;
+
+                lhs(forIter.Left);
+                list(forIter.List);
+            };
+        }
+
+        private Action<ComprehensionIterator> AsyncCompFor(Action<Expression> lhs, Action<Expression> list) {
+            return iter => {
+                Assert.AreEqual(typeof(ComprehensionFor), iter.GetType());
+                var forIter = (ComprehensionFor)iter;
+                Assert.IsTrue(forIter.IsAsync);
 
                 lhs(forIter.Left);
                 list(forIter.List);

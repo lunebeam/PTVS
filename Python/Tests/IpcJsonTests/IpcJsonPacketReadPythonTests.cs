@@ -39,7 +39,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         [TestInitialize]
@@ -254,7 +253,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -269,7 +267,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -280,26 +277,10 @@ namespace IpcJsonTests {
     }
 
     [TestClass]
-    public class IpcJsonPacketReadPythonTests30 : IpcJsonPacketReadPythonTests {
-        [ClassInitialize]
-        public static new void DoDeployment(TestContext context) {
-            AssertListener.Initialize();
-            PythonTestData.Deploy();
-        }
-
-        internal override PythonVersion Version {
-            get {
-                return PythonPaths.Python30 ?? PythonPaths.Python30_x64;
-            }
-        }
-    }
-
-    [TestClass]
     public class IpcJsonPacketReadPythonTests31 : IpcJsonPacketReadPythonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -314,7 +295,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -329,7 +309,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -344,7 +323,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -359,7 +337,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {
@@ -374,7 +351,6 @@ namespace IpcJsonTests {
         [ClassInitialize]
         public static new void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         internal override PythonVersion Version {

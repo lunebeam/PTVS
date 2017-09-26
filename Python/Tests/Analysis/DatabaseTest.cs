@@ -33,7 +33,6 @@ namespace AnalysisTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         [TestMethod, Priority(1)]
@@ -171,7 +170,6 @@ namespace AnalysisTests {
     public class DatabaseTest27 {
         static DatabaseTest27() {
             AssertListener.Initialize();
-            PythonTestData.Deploy(includeTestData: false);
         }
 
         public virtual PythonVersion Python {
@@ -208,7 +206,7 @@ namespace AnalysisTests {
                 return p1.Path == p2.Path && p1.IsStandardLibrary == p2.IsStandardLibrary;
             });
 
-            var dbPath = TestData.GetTempPath(randomSubPath: true);
+            var dbPath = TestData.GetTempPath();
             Assert.IsNull(PythonTypeDatabase.GetCachedDatabaseSearchPaths(dbPath),
                 "Should not have found cached paths in an empty directory");
 
@@ -239,23 +237,9 @@ namespace AnalysisTests {
     }
 
     [TestClass]
-    public class DatabaseTest25 : DatabaseTest27 {
-        public override PythonVersion Python {
-            get { return PythonPaths.Python25 ?? PythonPaths.Python25_x64; }
-        }
-    }
-
-    [TestClass]
     public class DatabaseTest26 : DatabaseTest27 {
         public override PythonVersion Python {
             get { return PythonPaths.Python26 ?? PythonPaths.Python26_x64; }
-        }
-    }
-
-    [TestClass]
-    public class DatabaseTest30 : DatabaseTest27 {
-        public override PythonVersion Python {
-            get { return PythonPaths.Python30 ?? PythonPaths.Python30_x64; }
         }
     }
 

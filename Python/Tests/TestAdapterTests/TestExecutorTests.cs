@@ -19,6 +19,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -160,28 +161,47 @@ namespace TestAdapterTests {
         internal static MockRunContext CreateRunContext(
             IEnumerable<TestInfo> expected,
             string interpreter = null,
-            string testResults = null,
             bool dryRun = false,
             bool showConsole = false
         ) {
             var projects = new List<string>();
+            var testCases = new List<TestCase>();
+
+            var baseDir = TestData.GetTempPath();
+            var sources = Path.Combine(baseDir, "Source");
+            var results = Path.Combine(baseDir, "Results");
 
             foreach (var proj in expected.GroupBy(e => e.ProjectFilePath)) {
-                var projName = Path.GetDirectoryName(proj.Key);
-                if (!projName.EndsWith("\\")) {
-                    projName += "\\";
-                }
-                projects.Add(string.Format(_runSettingProject,
-                    projName,
-                    proj.Key,
-                    interpreter ?? GetInterpreterPath(proj.Key),
-                    string.Join(Environment.NewLine, proj.Select(e =>string.Format(_runSettingTest,
-                        e.SourceCodeFilePath,
+                var projectSource = Path.GetDirectoryName(proj.Key);
+
+                Func<string, string> Rebase = d => PathUtils.GetAbsoluteFilePath(
+                    baseDir,
+                    PathUtils.GetRelativeFilePath(TestData.GetPath(), d)
+                );
+
+                var projName = Rebase(projectSource);
+                FileUtils.CopyDirectory(projectSource, projName, true);
+
+                var sb = new StringBuilder();
+                foreach (var e in proj) {
+                    var tc = e.TestCase;
+                    tc.CodeFilePath = Rebase(tc.CodeFilePath);
+                    testCases.Add(tc);
+
+                    sb.AppendLine(_runSettingTest.FormatInvariant(
+                        Rebase(e.SourceCodeFilePath),
                         e.ClassName,
                         e.MethodName,
                         e.SourceCodeLineNumber,
                         8
-                    ))),
+                    ));
+                }
+
+                projects.Add(string.Format(_runSettingProject,
+                    PathUtils.EnsureEndSeparator(projName),
+                    Path.GetFileName(proj.Key),
+                    interpreter ?? GetInterpreterPath(proj.Key),
+                    sb.ToString(),
                     string.Join(Environment.NewLine, GetEnvironmentVariables(proj.Key)),
                     string.Join(Environment.NewLine, GetSearchPaths(proj.Key))
                 ));
@@ -192,11 +212,11 @@ namespace TestAdapterTests {
             }
 
             return new MockRunContext(new MockRunSettings(string.Format(_runSettings,
-                testResults ?? TestData.GetTempPath(),
+                results,
                 string.Join(Environment.NewLine, projects),
                 dryRun ? "true" : "false",
                 showConsole ? "true" : "false"
-            )));
+            )), testCases);
         }
 
         [TestMethod, Priority(1)]
@@ -206,7 +226,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = TestInfo.TestAdapterATests.Concat(TestInfo.TestAdapterBTests).ToArray();
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -225,14 +245,15 @@ namespace TestAdapterTests {
         public void TestRunAll() {
             var executor = new TestExecutor();
             var recorder = new MockTestExecutionRecorder();
-            var expectedTests = TestInfo.TestAdapterATests.Concat(TestInfo.TestAdapterBTests).ToArray();
-            var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
+            var tests = TestInfo.TestAdapterATests.Concat(TestInfo.TestAdapterBTests).ToArray();
+            var runContext = CreateRunContext(tests, Version.InterpreterPath);
+            var expectedTests = runContext.TestCases;
 
-            executor.RunTests(expectedTests.Select(ti => ti.SourceCodeFilePath), runContext, recorder);
+            executor.RunTests(expectedTests, runContext, recorder);
             PrintTestResults(recorder);
 
             var resultNames = recorder.Results.Select(tr => tr.TestCase.FullyQualifiedName).ToSet();
-            foreach (var expectedResult in expectedTests) {
+            foreach (var expectedResult in tests) {
                 AssertUtil.ContainsAtLeast(resultNames, expectedResult.TestCase.FullyQualifiedName);
                 var actualResult = recorder.Results.SingleOrDefault(tr => tr.TestCase.FullyQualifiedName == expectedResult.TestCase.FullyQualifiedName);
                 Assert.AreEqual(expectedResult.Outcome, actualResult.Outcome, expectedResult.TestCase.FullyQualifiedName + " had incorrect result");
@@ -246,7 +267,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = TestInfo.TestAdapterATests.Union(TestInfo.TestAdapterBTests).ToArray();
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             var thread = new System.Threading.Thread(o => {
                 executor.RunTests(testCases, runContext, recorder);
@@ -286,7 +307,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = TestInfo.TestAdapterMultiprocessingTests;
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -309,7 +330,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = TestInfo.TestAdapterBInheritanceTests;
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -333,7 +354,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = TestInfo.GetTestAdapterLoadErrorTests(ImportErrorFormat);
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -366,7 +387,7 @@ namespace TestAdapterTests {
                 TestInfo.StackTraceNotEqualFailure
             };
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
 
@@ -446,7 +467,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = new[] { TestInfo.EnvironmentTestSuccess };
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -472,7 +493,7 @@ namespace TestAdapterTests {
                 TestInfo.DurationSleep15TestFailure
             };
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -486,13 +507,38 @@ namespace TestAdapterTests {
             }
         }
 
+        [TestMethod, Priority(1)]
+        [TestCategory("10s")]
+        public void TestTeardown() {
+            var executor = new TestExecutor();
+            var recorder = new MockTestExecutionRecorder();
+            var expectedTests = new[] {
+                TestInfo.TeardownSuccess,
+                TestInfo.TeardownFailure
+            };
+            var runContext = CreateRunContext(expectedTests, Version.InterpreterPath);
+            var testCases = runContext.TestCases;
+
+            executor.RunTests(testCases, runContext, recorder);
+            PrintTestResults(recorder);
+
+            var resultNames = recorder.Results.Select(tr => tr.TestCase.FullyQualifiedName).ToSet();
+            foreach (var expectedResult in expectedTests) {
+                AssertUtil.ContainsAtLeast(resultNames, expectedResult.TestCase.FullyQualifiedName);
+                var actualResult = recorder.Results.SingleOrDefault(tr => tr.TestCase.FullyQualifiedName == expectedResult.TestCase.FullyQualifiedName);
+                Assert.AreEqual(expectedResult.Outcome, actualResult.Outcome, expectedResult.TestCase.FullyQualifiedName + " had incorrect result");
+                var stdOut = actualResult.Messages.Single(m => m.Category == "StdOutMsgs");
+                AssertUtil.Contains(stdOut.Text, "doing setUp", "doing tearDown");
+            }
+        }
+
         [TestMethod, Priority(0)]
         public void TestPassOnCommandLine() {
             var executor = new TestExecutor();
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = TestInfo.TestAdapterATests;
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath, dryRun: true);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -509,7 +555,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = Enumerable.Repeat(TestInfo.TestAdapterATests, 10).SelectMany();
             var runContext = CreateRunContext(expectedTests, Version.InterpreterPath, dryRun: true);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -542,7 +588,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python26 ?? PythonPaths.Python26_x64;
@@ -553,7 +598,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python27 ?? PythonPaths.Python27_x64;
@@ -568,7 +612,7 @@ namespace TestAdapterTests {
             var recorder = new MockTestExecutionRecorder();
             var expectedTests = new[] { TestInfo.ExtensionReferenceTestSuccess };
             var runContext = CreateRunContext(expectedTests);
-            var testCases = expectedTests.Select(tr => tr.TestCase);
+            var testCases = runContext.TestCases;
 
             executor.RunTests(testCases, runContext, recorder);
             PrintTestResults(recorder);
@@ -583,22 +627,10 @@ namespace TestAdapterTests {
     }
 
     [TestClass]
-    public class TestExecutorTests30 : TestExecutorTests {
-        [ClassInitialize]
-        public static void DoDeployment(TestContext context) {
-            AssertListener.Initialize();
-            PythonTestData.Deploy();
-        }
-
-        protected override PythonVersion Version => PythonPaths.Python30 ?? PythonPaths.Python30_x64;
-    }
-
-    [TestClass]
     public class TestExecutorTests31 : TestExecutorTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python31 ?? PythonPaths.Python31_x64;
@@ -609,7 +641,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python32 ?? PythonPaths.Python32_x64;
@@ -620,7 +651,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python33 ?? PythonPaths.Python33_x64;
@@ -633,7 +663,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python34 ?? PythonPaths.Python34_x64;
@@ -646,7 +675,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python35 ?? PythonPaths.Python35_x64;
@@ -659,7 +687,6 @@ namespace TestAdapterTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
-            PythonTestData.Deploy();
         }
 
         protected override PythonVersion Version => PythonPaths.Python36 ?? PythonPaths.Python36_x64;
