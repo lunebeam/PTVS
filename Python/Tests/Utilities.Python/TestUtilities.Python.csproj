@@ -102,6 +102,7 @@
     <Compile Include="DefaultInterpreterSetter.cs" />
     <Compile Include="Django\NewAppDialog.cs" />
     <Compile Include="EnvironmentVariableSetter.cs" />
+    <Compile Include="InterpreterWithPackageSetter.cs" />
     <Compile Include="MockInteractiveWindowCommandsFactory.cs" />
     <Compile Include="MockPackageManager.cs" />
     <Compile Include="MockPythonToolsOptionsService.cs" />
@@ -130,6 +131,11 @@
     <ProjectReference Include="..\..\..\Common\Tests\MockVsTests\MockVsTests.csproj">
       <Project>{a390e1c0-0d90-4a9e-8413-3e959bb07292}</Project>
       <Name>MockVsTests</Name>
+      <IncludeInVsix>true</IncludeInVsix>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\Common\Tests\SccPackage\TestSccPackage.csproj">
+      <Project>{e75e5db1-0ea0-4247-a830-fe467c016816}</Project>
+      <Name>TestSccPackage</Name>
       <IncludeInVsix>true</IncludeInVsix>
     </ProjectReference>
     <ProjectReference Include="..\..\Product\Analysis\Analysis.csproj">
