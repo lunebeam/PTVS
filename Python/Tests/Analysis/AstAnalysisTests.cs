@@ -20,7 +20,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using analysis::Microsoft.PythonTools.Interpreter;
@@ -38,6 +37,12 @@ namespace AnalysisTests {
         [ClassInitialize]
         public static void DoDeployment(TestContext context) {
             AssertListener.Initialize();
+            AstPythonInterpreterFactory.LogToConsole = true;
+        }
+
+        [ClassCleanup]
+        public static void DoCleanup() {
+            AstPythonInterpreterFactory.LogToConsole = false;
         }
 
         private static PythonAnalysis CreateAnalysis(PythonVersion version) {
@@ -170,6 +175,30 @@ namespace AnalysisTests {
         }
 
         [TestMethod, Priority(0)]
+        public void AstMultiValues() {
+            using (var entry = CreateAnalysis()) {
+                entry.SetSearchPaths(TestData.GetPath(@"TestData\AstAnalysis"));
+                entry.AddModule("test-module", "from MultiValues import *");
+                entry.WaitForAnalysis();
+
+                entry.AssertHasAttr("",
+                    "x", "y", "z", "l", "t", "s",
+                    "XY", "XYZ", "D"
+                );
+
+                entry.AssertIsInstance("x", BuiltinTypeId.Int);
+                entry.AssertIsInstance("y", BuiltinTypeId.Str);
+                entry.AssertIsInstance("z", BuiltinTypeId.Bytes);
+                entry.AssertIsInstance("l", BuiltinTypeId.List);
+                entry.AssertIsInstance("t", BuiltinTypeId.Tuple);
+                entry.AssertIsInstance("s", BuiltinTypeId.Set);
+                entry.AssertIsInstance("XY", BuiltinTypeId.Int, BuiltinTypeId.Str);
+                entry.AssertIsInstance("XYZ", BuiltinTypeId.Int, BuiltinTypeId.Str, BuiltinTypeId.Bytes);
+                entry.AssertIsInstance("D", BuiltinTypeId.List, BuiltinTypeId.Tuple, BuiltinTypeId.Dict, BuiltinTypeId.Set);
+            }
+        }
+
+        [TestMethod, Priority(0)]
         public void AstImports() {
             var mod = Parse("Imports.py", PythonLanguageVersion.V35);
             AssertUtil.ContainsExactly(mod.GetMemberNames(null),
@@ -202,59 +231,6 @@ R_A3 = R_A1.r_A()");
                 entry.AssertDescription("R_A1", "A");
                 entry.AssertDescription("R_A2", "A");
                 entry.AssertDescription("R_A3", "A");
-            }
-        }
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV36() => AstBuiltinScrape(PythonPaths.Python36_x64 ?? PythonPaths.Python36);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV35() => AstBuiltinScrape(PythonPaths.Python35_x64 ?? PythonPaths.Python35);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV34() => AstBuiltinScrape(PythonPaths.Python34_x64 ?? PythonPaths.Python34);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV33() => AstBuiltinScrape(PythonPaths.Python33_x64 ?? PythonPaths.Python33);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV32() => AstBuiltinScrape(PythonPaths.Python32_x64 ?? PythonPaths.Python32);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV31() => AstBuiltinScrape(PythonPaths.Python31_x64 ?? PythonPaths.Python31);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV27() => AstBuiltinScrape(PythonPaths.Python27_x64 ?? PythonPaths.Python27);
-
-        [TestMethod, Priority(0)]
-        public void AstBuiltinScrapeV26() => AstBuiltinScrape(PythonPaths.Python26_x64 ?? PythonPaths.Python26);
-
-
-        private void AstBuiltinScrape(PythonVersion version) {
-            version.AssertInstalled();
-            using (var analysis = CreateAnalysis(version)) {
-                var fact = (AstPythonInterpreterFactory)analysis.Analyzer.InterpreterFactory;
-                var interp = (AstPythonInterpreter)analysis.Analyzer.Interpreter;
-
-                var mod = interp.ImportModule(interp.BuiltinModuleName);
-                Assert.IsInstanceOfType(mod, typeof(AstBuiltinsPythonModule));
-
-                // Ensure we can get all the builtin types
-                foreach (BuiltinTypeId v in Enum.GetValues(typeof(BuiltinTypeId))) {
-                    var type = interp.GetBuiltinType(v);
-                    Assert.IsNotNull(type, v.ToString());
-                    Assert.IsInstanceOfType(type, typeof(AstPythonBuiltinType), $"Did not find {v}");
-                }
-
-                // Ensure we cannot see or get builtin types directly
-                AssertUtil.DoesntContain(
-                    mod.GetMemberNames(null),
-                    Enum.GetNames(typeof(BuiltinTypeId)).Select(n => $"__{n}")
-                );
-
-                foreach (var id in Enum.GetNames(typeof(BuiltinTypeId))) {
-                    Assert.IsNull(mod.GetMember(null, $"__{id}"), id);
-                }
             }
         }
 
@@ -314,47 +290,195 @@ R_A3 = R_A1.r_A()");
         #region Black-box sanity tests
         // "Do we crash?"
 
-        [TestMethod, TestCategory("10s"), Priority(1)]
-        public void FullStdLibV35() {
-            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V35);
-            FullStdLibTest(v);
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV36() => AstBuiltinScrape(PythonPaths.Python36_x64 ?? PythonPaths.Python36);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV35() => AstBuiltinScrape(PythonPaths.Python35_x64 ?? PythonPaths.Python35);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV34() => AstBuiltinScrape(PythonPaths.Python34_x64 ?? PythonPaths.Python34);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV33() => AstBuiltinScrape(PythonPaths.Python33_x64 ?? PythonPaths.Python33);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV32() => AstBuiltinScrape(PythonPaths.Python32_x64 ?? PythonPaths.Python32);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV31() => AstBuiltinScrape(PythonPaths.Python31_x64 ?? PythonPaths.Python31);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV27() => AstBuiltinScrape(PythonPaths.Python27_x64 ?? PythonPaths.Python27);
+
+        [TestMethod, Priority(0)]
+        public void AstBuiltinScrapeV26() => AstBuiltinScrape(PythonPaths.Python26_x64 ?? PythonPaths.Python26);
+
+
+        private void AstBuiltinScrape(PythonVersion version) {
+            version.AssertInstalled();
+            using (var analysis = CreateAnalysis(version)) {
+                var fact = (AstPythonInterpreterFactory)analysis.Analyzer.InterpreterFactory;
+                var interp = (AstPythonInterpreter)analysis.Analyzer.Interpreter;
+
+                var mod = interp.ImportModule(interp.BuiltinModuleName);
+                var modPath = fact.GetCacheFilePath(fact.Configuration.InterpreterPath);
+                if (File.Exists(modPath)) {
+                    Console.WriteLine(File.ReadAllText(modPath));
+                }
+                Assert.IsInstanceOfType(mod, typeof(AstBuiltinsPythonModule));
+
+                var errors = ((AstScrapedPythonModule)mod).ParseErrors ?? Enumerable.Empty<string>();
+                foreach (var err in errors) {
+                    Console.WriteLine(err);
+                }
+                Assert.AreEqual(0, errors.Count(), "Parse errors occurred");
+
+                // Ensure we can get all the builtin types
+                foreach (BuiltinTypeId v in Enum.GetValues(typeof(BuiltinTypeId))) {
+                    var type = interp.GetBuiltinType(v);
+                    Assert.IsNotNull(type, v.ToString());
+                    Assert.IsInstanceOfType(type, typeof(AstPythonBuiltinType), $"Did not find {v}");
+                }
+
+                // Ensure we cannot see or get builtin types directly
+                AssertUtil.DoesntContain(
+                    mod.GetMemberNames(null),
+                    Enum.GetNames(typeof(BuiltinTypeId)).Select(n => $"__{n}")
+                );
+
+                foreach (var id in Enum.GetNames(typeof(BuiltinTypeId))) {
+                    Assert.IsNull(mod.GetMember(null, $"__{id}"), id);
+                }
+            }
         }
 
-        [TestMethod, TestCategory("10s"), Priority(1)]
-        public void FullStdLibV36() {
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV36() {
             var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V36);
-            FullStdLibTest(v);
+            await FullStdLibTest(v);
         }
 
-        [TestMethod, TestCategory("10s"), Priority(1)]
-        public void FullStdLibV27() {
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV35() {
+            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V35);
+            await FullStdLibTest(v);
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV34() {
+            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V34);
+            await FullStdLibTest(v);
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV33() {
+            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V33);
+            await FullStdLibTest(v);
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV32() {
+            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V32);
+            await FullStdLibTest(v);
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV31() {
+            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V31);
+            await FullStdLibTest(v);
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV27() {
             var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V27);
-            FullStdLibTest(v);
+            await FullStdLibTest(v);
         }
 
-        private static void FullStdLibTest(PythonVersion v) {
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibV26() {
+            var v = PythonPaths.Versions.FirstOrDefault(pv => pv.Version == PythonLanguageVersion.V26);
+            await FullStdLibTest(v);
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        [Timeout(10 * 60 * 1000)]
+        public async Task FullStdLibAnaconda3() {
+            var v = PythonPaths.Anaconda36_x64 ?? PythonPaths.Anaconda36;
+            await FullStdLibTest(v,
+                // Crashes Python on import
+                "sklearn.linear_model.cd_fast",
+                // Crashes Python on import
+                "sklearn.cluster._k_means_elkan"
+            );
+        }
+
+        [TestMethod, TestCategory("60s"), Priority(0)]
+        public async Task FullStdLibAnaconda2() {
+            var v = PythonPaths.Anaconda27_x64 ?? PythonPaths.Anaconda27;
+            await FullStdLibTest(v,
+                // Fails to import due to SxS manifest issues
+                "dde",
+                // Generates invalid Python 2.x code ("def exec(...)")
+                "PyQt5.QtGui"
+            );
+        }
+
+        private static async Task FullStdLibTest(PythonVersion v, params string[] skipModules) {
             v.AssertInstalled();
-            var factory = new AstPythonInterpreterFactory(v.Configuration, null);
+            var factory = new AstPythonInterpreterFactory(v.Configuration, new InterpreterFactoryCreationOptions {
+                DatabasePath = TestData.GetTempPath(),
+                UseExistingCache = false
+            });
             var modules = ModulePath.GetModulesInLib(v.PrefixPath).ToList();
+
+            var skip = new HashSet<string>(skipModules);
+            skip.UnionWith(new[] {
+                "matplotlib.backends._backend_gdk",
+                "matplotlib.backends._backend_gtkagg",
+            });
 
             bool anySuccess = false;
             bool anyExtensionSuccess = false, anyExtensionSeen = false;
+            bool anyParseError = false;
 
             using (var analyzer = new PythonAnalysis(factory)) {
-                foreach (var modName in modules) {
+                var tasks = new List<Task<Tuple<ModulePath, IPythonModule>>>();
+
+                var interp = analyzer.Analyzer.Interpreter;
+                foreach(var r in modules.AsParallel()
+                    .Where(m => !skip.Contains(m.ModuleName))
+                    .Select(m => Tuple.Create(m, interp.ImportModule(m.ModuleName)))
+                ) {
+                    var modName = r.Item1;
+                    var mod = r.Item2;
+
                     anyExtensionSeen |= modName.IsNativeExtension;
-                    var mod = analyzer.Analyzer.Interpreter.ImportModule(modName.ModuleName);
                     if (mod == null) {
-                        Trace.TraceWarning("failed to import {0} from {1}".FormatInvariant(modName.ModuleName, modName.SourceFile));
+                        Trace.TraceWarning("failed to import {0} from {1}", modName.ModuleName, modName.SourceFile);
+                    } else if (mod is AstScrapedPythonModule smod) {
+                        if (smod.ParseErrors?.Any() ?? false) {
+                            anyParseError = true;
+                            Trace.TraceError("Parse errors in {0}", modName.SourceFile);
+                            foreach (var e in smod.ParseErrors) {
+                                Trace.TraceError(e);
+                            }
+                        } else {
+                            anySuccess = true;
+                            anyExtensionSuccess |= modName.IsNativeExtension;
+                            mod.GetMemberNames(analyzer.ModuleContext).ToList();
+                        }
+                    } else if (mod is AstPythonModule) {
+                        // pass
                     } else {
-                        anySuccess = true;
-                        anyExtensionSuccess |= modName.IsNativeExtension;
-                        mod.GetMemberNames(analyzer.ModuleContext).ToList();
+                        Trace.TraceError("imported {0} as type {1}", modName.ModuleName, mod.GetType().FullName);
                     }
                 }
             }
             Assert.IsTrue(anySuccess, "failed to import any modules at all");
             Assert.IsTrue(anyExtensionSuccess || !anyExtensionSeen, "failed to import all extension modules");
+            Assert.IsFalse(anyParseError, "parse errors occurred");
         }
 
         #endregion

@@ -34,12 +34,11 @@ namespace AnalysisTests {
         [TestInitialize]
         public void TestInitialize() {
             AnalysisLog.Reset();
-            AnalysisLog.ResetTime();
             AssertListener.Initialize();
         }
 
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void CrossThreadAnalysisCalls() {
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
 

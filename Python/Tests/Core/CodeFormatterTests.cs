@@ -15,15 +15,12 @@
 // permissions and limitations under the License.
 
 using System;
-using System.Linq;
+using System.IO;
 using Microsoft.PythonTools;
 using Microsoft.PythonTools.Infrastructure;
 using Microsoft.PythonTools.Intellisense;
 using Microsoft.PythonTools.Interpreter;
-using Microsoft.PythonTools.Interpreter.Default;
 using Microsoft.PythonTools.Parsing;
-using Microsoft.PythonTools.Parsing.Ast;
-using Microsoft.PythonTools.Refactoring;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.VisualStudio.Text;
 using TestUtilities;
@@ -38,7 +35,7 @@ namespace PythonToolsTests {
             AssertListener.Initialize();
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void TestCodeFormattingSelection() {
             var input = @"print('Hello World')
 
@@ -76,7 +73,7 @@ class Oar(object):
             CodeFormattingTest(input, selection, expected, "    def say_hello .. method_end", options);
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void TestCodeFormattingEndOfFile() {
             var input = @"print('Hello World')
 
@@ -100,7 +97,7 @@ class Oar(object):
             CodeFormattingTest(input, new Span(input.Length, 0), input, null, options);
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void TestCodeFormattingInMethodExpression() {
             var input = @"print('Hello World')
 
@@ -124,7 +121,7 @@ class Oar(object):
             CodeFormattingTest(input, "method_end", input, null, options);
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void TestCodeFormattingStartOfMethodSelection() {
             var input = @"print('Hello World')
 
@@ -162,7 +159,7 @@ class Oar(object):
             CodeFormattingTest(input, selection, expected, "    def say_hello .. method_end", options);
         }
 
-        [TestMethod, Priority(1)]
+        [TestMethod, Priority(0)]
         public void FormatDocument() {
             var input = @"fob('Hello World')";
             var expected = @"fob( 'Hello World' )";
@@ -174,8 +171,8 @@ class Oar(object):
         private static void CodeFormattingTest(string input, object selection, string expected, object expectedSelection, CodeFormattingOptions options, bool selectResult = true) {
             var fact = InterpreterFactoryCreator.CreateAnalysisInterpreterFactory(new Version(2, 7));
             var services = PythonToolsTestUtilities.CreateMockServiceProvider().GetEditorServices();
-            using (var analyzer = new VsProjectAnalyzer(services, fact)) {
-                var buffer = new MockTextBuffer(input, PythonCoreConstants.ContentType, "C:\\fob.py");
+            using (var analyzer = new VsProjectAnalyzer(services, fact, outOfProcAnalyzer: false)) {
+                var buffer = new MockTextBuffer(input, PythonCoreConstants.ContentType, Path.Combine(TestData.GetTempPath(), "fob.py"));
                 buffer.AddProperty(typeof(VsProjectAnalyzer), analyzer);
                 var view = new MockTextView(buffer);
                 var bi = services.GetBufferInfo(buffer);

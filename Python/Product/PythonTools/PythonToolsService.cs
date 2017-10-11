@@ -19,6 +19,7 @@ using System.Collections.Generic;
 using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -59,7 +60,6 @@ namespace Microsoft.PythonTools {
         private readonly Lazy<PythonInteractiveOptions> _debugInteractiveOptions;
         private readonly Lazy<PythonInteractiveOptions> _interactiveOptions;
         private readonly Lazy<SuppressDialogOptions> _suppressDialogOptions;
-        private readonly Lazy<SurveyNewsService> _surveyNews;
         private readonly AnalysisEntryService _entryService;
         private readonly IdleManager _idleManager;
         private readonly DiagnosticsProvider _diagnosticsProvider;
@@ -98,7 +98,6 @@ namespace Microsoft.PythonTools {
             _experimentalOptions = new Lazy<Options.ExperimentalOptions>(CreateExperimentalOptions);
             _diagnosticsOptions = new Lazy<DiagnosticsOptions>(CreateDiagnosticsOptions);
             _generalOptions = new Lazy<GeneralOptions>(CreateGeneralOptions);
-            _surveyNews = new Lazy<SurveyNewsService>(() => new SurveyNewsService(this));
             _suppressDialogOptions = new Lazy<SuppressDialogOptions>(() => new SuppressDialogOptions(this));
             _interactiveOptions = new Lazy<PythonInteractiveOptions>(() => CreateInteractiveOptions("Interactive"));
             _debugInteractiveOptions = new Lazy<PythonInteractiveOptions>(() => CreateInteractiveOptions("Debug Interactive Window"));
@@ -158,7 +157,6 @@ namespace Microsoft.PythonTools {
                     });
                 }
 
-                _logger.LogEvent(PythonLogEvent.SurveyNewsFrequency, GeneralOptions.SurveyNewsCheck.ToString());
                 _logger.LogEvent(PythonLogEvent.Experiments, new Dictionary<string, object> {
                     { "NoDatabaseFactory", ExperimentalOptions.NoDatabaseFactory }
                 });
@@ -227,7 +225,6 @@ namespace Microsoft.PythonTools {
         }
 
         internal PythonToolsLogger Logger => _logger;
-        internal SurveyNewsService SurveyNews => _surveyNews.Value;
 
         #region Public API
 
@@ -637,6 +634,19 @@ namespace Microsoft.PythonTools {
                 );
             }
             return env;
+        }
+
+        public IEnumerable<string> GetGlobalPythonSearchPaths(InterpreterConfiguration interpreter) {
+            if (!GeneralOptions.ClearGlobalPythonPath) {
+                string pythonPath = Environment.GetEnvironmentVariable(interpreter.PathEnvironmentVariable) ?? string.Empty;
+                return pythonPath
+                    .Split(Path.PathSeparator)
+                    // Just ensure the string is not empty - if people are passing
+                    // through invalid paths this option is meant to allow it
+                    .Where(p => !string.IsNullOrEmpty(p));
+            }
+
+            return Enumerable.Empty<string>();
         }
     }
 }

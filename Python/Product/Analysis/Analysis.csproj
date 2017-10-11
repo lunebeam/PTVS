@@ -58,6 +58,7 @@
   <ItemGroup>
     <Compile Include="AggregateProjectEntry.cs" />
     <Compile Include="AnalysisDictionary.cs" />
+    <Compile Include="AnalysisLogWriter.cs" />
     <Compile Include="Interpreter\Ast\AstAnalysisFunctionWalker.cs" />
     <Compile Include="Interpreter\Ast\AstAnalysisWalker.cs" />
     <Compile Include="IHasRichDescription.cs" />
@@ -66,6 +67,7 @@
     <Compile Include="Interpreter\Ast\AstPythonBuiltinType.cs" />
     <Compile Include="Interpreter\Ast\AstPythonInterpreter.cs" />
     <Compile Include="Interpreter\Ast\AstNestedPythonModule.cs" />
+    <Compile Include="Interpreter\Ast\AstPythonMultipleMembers.cs" />
     <Compile Include="Interpreter\Ast\AstPythonStringLiteral.cs" />
     <Compile Include="Interpreter\Ast\AstPythonType.cs" />
     <Compile Include="Interpreter\Ast\AstPythonConstant.cs" />
