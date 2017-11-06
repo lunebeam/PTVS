@@ -441,10 +441,13 @@
       </Item>
       <Item ItemId=";PythonFilesFilter" ItemType="0" PsrId="211" Leaf="true">
         <Str Cat="Text">
-          <Val><![CDATA[Python files (*.py;*.pyw)|*.py;*.pyw|All Files (*.*)|*.*]]></Val>
+          <Val><![CDATA[Python files (*.py;*.pyw;*.pyi)|*.py;*.pyw;*.pyi|All Files (*.*)|*.*]]></Val>
           <Tgt Cat="Text" Stat="Loc" Orig="New">
-            <Val><![CDATA[Archivos de Python (*.py;*.pyw)|*.py;*.pyw|Todos los archivos (*.*)|*.*]]></Val>
+            <Val><![CDATA[Archivos de Python (*.py;*.pyw;*.pyi)|*.py;*.pyw;*.pyi|Todos los archivos (*.*)|*.*]]></Val>
           </Tgt>
+          <Prev Cat="Text">
+            <Val><![CDATA[Python files (*.py;*.pyw)|*.py;*.pyw|All Files (*.*)|*.*]]></Val>
+          </Prev>
         </Str>
         <Disp Icon="Str" />
       </Item>
@@ -805,7 +808,7 @@
     </Item>
     <Item ItemId=";FileVersion" ItemType="0" PsrId="211" Leaf="true">
       <Str Cat="Text" DevLk="true">
-        <Val><![CDATA[3.0.17297.1]]></Val>
+        <Val><![CDATA[3.0.17307.1]]></Val>
       </Str>
       <Disp Icon="Str" />
     </Item>
@@ -841,7 +844,7 @@
     </Item>
     <Item ItemId=";ProductVersion" ItemType="0" PsrId="211" Leaf="true">
       <Str Cat="Text" DevLk="true">
-        <Val><![CDATA[3.0.17297.1]]></Val>
+        <Val><![CDATA[3.0.17307.1]]></Val>
       </Str>
       <Disp Icon="Str" />
     </Item>
