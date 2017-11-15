@@ -106,7 +106,7 @@ namespace Microsoft.PythonTools.Interpreter {
             }
         }
 
-        internal void DiscoverInterpreterFactories() {
+        private void DiscoverInterpreterFactories() {
             if (Volatile.Read(ref _ignoreNotifications) > 0) {
                 return;
             }
@@ -296,6 +296,10 @@ namespace Microsoft.PythonTools.Interpreter {
         #region IPythonInterpreterProvider Members
 
         public IEnumerable<InterpreterConfiguration> GetInterpreterConfigurations() {
+            if (!ExperimentalOptions.AutoDetectCondaEnvironments) {
+                return Enumerable.Empty<InterpreterConfiguration>();
+            }
+
             EnsureInitialized();
 
             lock (_factories) {
@@ -304,6 +308,10 @@ namespace Microsoft.PythonTools.Interpreter {
         }
 
         public IPythonInterpreterFactory GetInterpreterFactory(string id) {
+            if (!ExperimentalOptions.AutoDetectCondaEnvironments) {
+                return null;
+            }
+
             EnsureInitialized();
 
             PythonInterpreterInformation info;
@@ -317,7 +325,9 @@ namespace Microsoft.PythonTools.Interpreter {
         private EventHandler _interpFactoriesChanged;
         public event EventHandler InterpreterFactoriesChanged {
             add {
-                EnsureInitialized();
+                if (ExperimentalOptions.AutoDetectCondaEnvironments) {
+                    EnsureInitialized();
+                }
                 _interpFactoriesChanged += value;
             }
             remove {
@@ -330,6 +340,10 @@ namespace Microsoft.PythonTools.Interpreter {
         }
 
         public object GetProperty(string id, string propName) {
+            if (!ExperimentalOptions.AutoDetectCondaEnvironments) {
+                return null;
+            }
+
             PythonInterpreterInformation info;
 
             switch (propName) {

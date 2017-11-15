@@ -53,7 +53,7 @@ namespace Microsoft.PythonTools.Interpreter {
         }
 
         private IPackageManager CreatePackageManager() {
-            if (!string.IsNullOrEmpty(CondaUtils.GetCondaExecutablePath(Configuration.PrefixPath))) {
+            if (ExperimentalOptions.UseCondaPackageManager && !string.IsNullOrEmpty(CondaUtils.GetCondaExecutablePath(Configuration.PrefixPath))) {
                 return new CondaPackageManager();
             } else {
                 return new PipPackageManager();
