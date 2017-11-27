@@ -16,7 +16,6 @@
 
 using System;
 using System.Collections.Generic;
-using System.ComponentModel.Composition;
 using System.Linq;
 using System.Web.Script.Serialization;
 using Microsoft.PythonTools.Analysis;
@@ -27,7 +26,6 @@ using Microsoft.PythonTools.Parsing.Ast;
 using Microsoft.PythonTools.Projects;
 
 namespace Microsoft.PythonTools.TestAdapter {
-    [Export(typeof(IAnalysisExtension))]
     [AnalysisExtensionName(Name)]
     partial class TestAnalyzer : IAnalysisExtension {
         internal const string Name = "ptvs_unittest";

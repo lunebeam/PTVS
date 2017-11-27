@@ -142,6 +142,7 @@
     <Reference Include="Microsoft.VisualStudio.Debugger.Interop.11.0, Version=11.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Debugger.Interop.14.0, Version=14.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Debugger.InteropA, Version=9.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+    <Reference Include="Microsoft.VisualStudio.Debugger.Interop.VSCodeDebuggerHost, Version=1.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL" />
     <Reference Include="Microsoft.VisualStudio.Designer.Interfaces, Version=1.0.5000.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
       <EmbedInteropTypes>False</EmbedInteropTypes>
     </Reference>
@@ -253,6 +254,7 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="ProvidePeekSupportedContentTypeAttribute.cs" />
     <Compile Include="PythonTools\CodeCoverage\CoverageExporter.cs" />
     <Compile Include="PythonTools\CodeCoverage\CoverageFileInfo.cs" />
     <Compile Include="PythonTools\CodeCoverage\CoverageHit.cs" />
@@ -264,10 +266,12 @@
     <Compile Include="PythonTools\Commands\ImportCoverageCommand.cs" />
     <Compile Include="PythonTools\Commands\OpenWebUrlCommand.cs" />
     <Compile Include="PythonTools\Debugger\DebugLaunchHelper.cs" />
+    <Compile Include="PythonTools\Debugger\ProvideDebugAdapterAttrributes.cs" />
     <Compile Include="PythonTools\Editor\IPythonTextBufferInfoEventSink.cs" />
     <Compile Include="PythonTools\Editor\PythonEditorServices.cs" />
     <Compile Include="PythonTools\Editor\PythonTextBufferInfo.cs" />
     <Compile Include="PythonTools\Editor\ReplPromptHelpers.cs" />
+    <Compile Include="PythonTools\Editor\TokenizerExtensions.cs" />
     <Compile Include="PythonTools\Intellisense\AbnormalAnalysisExitEventArgs.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisLocation.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisVariable.cs" />
@@ -276,6 +280,7 @@
     <Compile Include="PythonTools\Intellisense\ExpansionCompletionSource.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisEntryService.cs" />
     <Compile Include="PythonTools\Intellisense\ExpressionAtPoint.cs" />
+    <Compile Include="PythonTools\Intellisense\BufferAnalysisSquiggleProviderBase.cs" />
     <Compile Include="PythonTools\Intellisense\PreviewChangesService.cs" />
     <Compile Include="PythonTools\Intellisense\CompletionResult.cs" />
     <Compile Include="PythonTools\Intellisense\ExtractMethodSuggestedActionSourceProvider.cs" />
@@ -286,6 +291,7 @@
     <Compile Include="PythonTools\Intellisense\IIntellisenseCookie.cs" />
     <Compile Include="PythonTools\Intellisense\AnalysisEntry.cs" />
     <Compile Include="PythonTools\Intellisense\QuickInfo.cs" />
+    <Compile Include="PythonTools\Intellisense\InvalidEncodingSquiggleProvider.cs" />
     <Compile Include="PythonTools\Intellisense\VersionedResponse.cs" />
     <Compile Include="PythonTools\Editor\BraceCompletion\BraceCompletionContext.cs" />
     <Compile Include="PythonTools\Editor\BraceCompletion\BraceCompletionContextProvider.cs" />
@@ -954,6 +960,7 @@
     </EmbeddedResource>
     <EmbeddedResource Include="PythonTools\Options\PythonExperimentalOptionsControl.resx">
       <DependentUpon>PythonExperimentalOptionsControl.cs</DependentUpon>
+      <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="PythonTools\Options\PythonDiagnosticsOptionsControl.resx">
       <DependentUpon>PythonDiagnosticsOptionsControl.cs</DependentUpon>

@@ -1,4 +1,4 @@
-// Python Tools for Visual Studio
+﻿// Python Tools for Visual Studio
 // Copyright(c) Microsoft Corporation
 // All rights reserved.
 //
@@ -14,28 +14,20 @@
 // See the Apache Version 2.0 License for specific language governing
 // permissions and limitations under the License.
 
-using System.IO;
+using System;
+using System.ComponentModel.Composition;
 
 namespace Microsoft.PythonTools.Interpreter {
-    static class CondaUtils {
-        internal static string GetCondaExecutablePath(string prefixPath, bool allowBatch = true) {
-            if (!Directory.Exists(prefixPath)) {
-                return null;
-            }
+    [MetadataAttribute]
+    [AttributeUsage(AttributeTargets.Class | AttributeTargets.Property | AttributeTargets.Method | AttributeTargets.Field, AllowMultiple = false)]
+    public sealed class InterpreterFactoryIdAttribute : Attribute {
+        private readonly string _id;
 
-            var condaExePath = Path.Combine(prefixPath, "scripts", "conda.exe");
-            if (File.Exists(condaExePath)) {
-                return condaExePath;
-            }
-
-            if (allowBatch) {
-                var condaBatPath = Path.Combine(prefixPath, "scripts", "conda.bat");
-                if (File.Exists(condaBatPath)) {
-                    return condaBatPath;
-                }
-            }
-
-            return null;
+        public InterpreterFactoryIdAttribute(string interpreterFactoryId) {
+            _id = interpreterFactoryId;
         }
+
+        public string InterpreterFactoryId => _id;
     }
+
 }

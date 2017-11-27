@@ -35,13 +35,13 @@ namespace Microsoft {
             _mappedType = mappedType;
         }
 
-        public override void Register(RegistrationAttribute.RegistrationContext context) {
+        public override void Register(RegistrationContext context) {
             using (Key key = context.CreateKey("Diff\\SupportedContentTypes")) {
                 key.SetValue(_contentType, _mappedType);
             }
         }
 
-        public override void Unregister(RegistrationAttribute.RegistrationContext context) {
+        public override void Unregister(RegistrationContext context) {
         }
     }
 }

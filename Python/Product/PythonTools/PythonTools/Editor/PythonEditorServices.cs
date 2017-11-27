@@ -17,6 +17,7 @@
 using System;
 using System.ComponentModel.Composition;
 using Microsoft.PythonTools.Intellisense;
+using Microsoft.PythonTools.Interpreter;
 using Microsoft.VisualStudio.ComponentModelHost;
 using Microsoft.VisualStudio.Editor;
 using Microsoft.VisualStudio.Language.Intellisense;
@@ -53,7 +54,8 @@ namespace Microsoft.PythonTools.Editor {
             ComponentModel = Site.GetComponentModel();
             _errorTaskProvider = new Lazy<ErrorTaskProvider>(CreateTaskProvider<ErrorTaskProvider>);
             _commentTaskProvider = new Lazy<CommentTaskProvider>(CreateTaskProvider<CommentTaskProvider>);
-            _unresolvedImportSquiggleProvider = new Lazy<UnresolvedImportSquiggleProvider>(CreateImportSquiggleProvider);
+            _unresolvedImportSquiggleProvider = new Lazy<UnresolvedImportSquiggleProvider>(CreateSquiggleProvider<UnresolvedImportSquiggleProvider>);
+            _mismatchedEncodingSquiggleProvider = new Lazy<InvalidEncodingSquiggleProvider>(CreateSquiggleProvider<InvalidEncodingSquiggleProvider>);
         }
 
         public readonly IServiceProvider Site;
@@ -91,6 +93,9 @@ namespace Microsoft.PythonTools.Editor {
         [Import]
         private Lazy<AnalysisEntryService> _analysisEntryService = null;
         public AnalysisEntryService AnalysisEntryService => _analysisEntryService.Value;
+
+        [Import]
+        public IInterpreterRegistryService InterpreterRegistryService;
 
         [Import]
         private Lazy<IVsEditorAdaptersFactoryService> _editorAdaptersFactoryService = null;
@@ -139,6 +144,9 @@ namespace Microsoft.PythonTools.Editor {
         public UnresolvedImportSquiggleProvider UnresolvedImportSquiggleProvider => _unresolvedImportSquiggleProvider.Value;
         public UnresolvedImportSquiggleProvider MaybeUnresolvedImportSquiggleProvider => _unresolvedImportSquiggleProvider.IsValueCreated ? _unresolvedImportSquiggleProvider.Value : null;
 
+        private readonly Lazy<InvalidEncodingSquiggleProvider> _mismatchedEncodingSquiggleProvider;
+        public InvalidEncodingSquiggleProvider InvalidEncodingSquiggleProvider => _mismatchedEncodingSquiggleProvider.Value;
+
         private T CreateTaskProvider<T>() where T : class {
             if (VsProjectAnalyzer.SuppressTaskProvider) {
                 return null;
@@ -146,7 +154,7 @@ namespace Microsoft.PythonTools.Editor {
             return (T)Site.GetService(typeof(T));
         }
 
-        private UnresolvedImportSquiggleProvider CreateImportSquiggleProvider() {
+        private T CreateSquiggleProvider<T>() where T : class {
             if (VsProjectAnalyzer.SuppressTaskProvider) {
                 return null;
             }
@@ -154,7 +162,8 @@ namespace Microsoft.PythonTools.Editor {
             if (errorProvider == null) {
                 return null;
             }
-            return new UnresolvedImportSquiggleProvider(Site, errorProvider);
+
+            return (T)Activator.CreateInstance(typeof(T), new object[] { Site, errorProvider });
         }
 
         #endregion
